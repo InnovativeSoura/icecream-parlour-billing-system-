@@ -7,6 +7,7 @@ const authorizeRoles = require("../middleware/roleMiddleware");
 const {
   createInvoice,
   getInvoices,
+  downloadInvoice,
 } = require("../controllers/billingController");
 
 // Create Invoice
