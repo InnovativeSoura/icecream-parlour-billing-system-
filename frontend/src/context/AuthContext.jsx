@@ -1,48 +1,40 @@
-import React, {createContext, useContext, useEffect, useState,} from "react";
+import { createContext, useContext, useState } from "react";
+import api from "../api/api";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem("user"))
+  );
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
+  const login = async (email, password) => {
+    const res = await api.post("/auth/login", {
+      email,
+      password,
+    });
 
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+    localStorage.setItem(
+      "user",
+      JSON.stringify(res.data)
+    );
 
-  const login = (userData, token) => {
-    localStorage.setItem("user", JSON.stringify(userData));
-    localStorage.setItem("token", token);
-
-    setUser(userData);
+    setUser(res.data);
   };
 
   const logout = () => {
     localStorage.removeItem("user");
-    localStorage.removeItem("token");
-
     setUser(null);
   };
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        login,
-        logout,
-        isAuthenticated: !!user,
-      }}
+      value={{ user, login, logout }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
-
-export default AuthContext;
+export const useAuth = () =>
+  useContext(AuthContext);

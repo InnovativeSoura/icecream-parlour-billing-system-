@@ -1,67 +1,49 @@
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
-  const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [email, setEmail] =
+    useState("");
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  const [password, setPassword] =
+    useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      formData.email === "admin@icecream.com" &&
-      formData.password === "admin123"
-    ) {
-      navigate("/dashboard");
-    } else {
-      alert("Invalid Credentials");
-    }
+    await login(email, password);
+
+    alert("Login Successful");
   };
 
   return (
-    <div className="login-page">
-      <div className="login-box">
-        <h2>🍦 Ice Cream Billing Login</h2>
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) =>
+          setEmail(e.target.value)
+        }
+      />
 
-        <form onSubmit={handleSubmit}>
-          <div className="input-group">
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              onChange={handleChange}
-              required
-            />
-          </div>
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) =>
+          setPassword(e.target.value)
+        }
+      />
 
-          <div className="input-group">
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <button className="login-btn">
-            Login
-          </button>
-        </form>
-      </div>
-    </div>
+      <button type="submit">
+        Login
+      </button>
+    </form>
   );
-};
+}
+
 
 export default Login;
