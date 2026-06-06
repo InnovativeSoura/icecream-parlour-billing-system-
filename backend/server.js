@@ -36,9 +36,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Home Route
 app.get("/", (req, res) => {
-  res.status(200).json({
+  res.json({
     success: true,
-    message: "Ice Cream Parlour Billing API Running 🚀",
+    message: "Ice Cream Billing API Running",
   });
 });
 
