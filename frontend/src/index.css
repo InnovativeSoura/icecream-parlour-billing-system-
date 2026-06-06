@@ -7,7 +7,8 @@
 }
 
 body{
-  font-family:'Poppins',sans-serif;
+  margin: 0;
+  font-family: Arial, sans-serif;
   background:linear-gradient(135deg,#fff0f5,#ffe4e1,#fffacd);
   min-height:100vh;
   color:#333;
@@ -190,4 +191,34 @@ td{
   font-size:20px;
   color:#ff4d6d;
   font-weight:bold;
+}
+.auth-container {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+form {
+  width: 350px;
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 15px
+    rgba(0, 0, 0, 0.1);
+}
+input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  box-sizing: border-box;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: #4f46e5;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
 }

@@ -10,20 +10,7 @@ import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
 
 function App() {
-  return (
-    <Router>
-      <Navbar />
-
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/billing" element={<BillingToC />} />
-        <Route path="/orders" element={<Orders />} />
-        <Route path="/reports" element={<Reports />} />
-      </Routes>
-    </Router>
-  );
+  return <Auth />;
 }
 
 export default App;
