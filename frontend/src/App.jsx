@@ -8,6 +8,7 @@ import Products from "./pages/Products";
 import BillingToC from "./pages/BillingToC";
 import Orders from "./pages/Orders";
 import Reports from "./pages/Reports";
+import Auth from "./pages/Auth";
 
 function App() {
   return <Auth />;
