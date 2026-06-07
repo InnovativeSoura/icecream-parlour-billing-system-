@@ -1,4 +1,4 @@
-console.log("User Schema Loaded");
+console.log("User model loaded - cashier default");
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
