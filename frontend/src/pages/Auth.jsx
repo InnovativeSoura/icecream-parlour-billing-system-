@@ -2,7 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 
 const API =
-  import.meta.env.VITE_API_URL;
+  "https://icecreamparler-billing-system.onrender.com/api";
 
 function Auth() {
   const [isLogin, setIsLogin] =
