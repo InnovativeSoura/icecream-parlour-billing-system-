@@ -1,17 +1,30 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import BillingToC from "./pages/BillingToC";
-import Orders from "./pages/Orders";
-import Reports from "./pages/Reports";
-import Auth from "./pages/Auth";
+import Registration from "./pages/Registration";
 
 function App() {
-  return <Auth />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        <Route
+          path="/register"
+        element={<Registration />}
+        />
+
+        <Route
+        path="/"
+        element={<Login />}
+        />
+        
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;
