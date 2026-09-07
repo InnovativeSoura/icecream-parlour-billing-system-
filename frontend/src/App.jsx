@@ -1,30 +1,142 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
+
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 import Login from "./pages/Login";
-import Registration from "./pages/Registration";
+import Register from "./pages/Register";
 
-function App() {
+import AdminDashboard from "./pages/AdminDashboard";
+import StaffDashboard from "./pages/StaffDashboard";
+import CustomerDashboard from "./pages/CustomerDashboard";
+
+import ProtectedRoute from "./components/ProtectedRoute";
+
+import { useAuth } from "./context/AuthContext";
+
+const HomeRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (user.role === "staff") {
+    return <Navigate to="/staff" replace />;
+  }
+
+  return <Navigate to="/customer" replace />;
+};
+
+const App = () => {
   return (
-    <BrowserRouter>
+    <>
       <Routes>
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+        <Route path="/" element={<HomeRedirect />} />
+
+        <Route path="/login" element={<Login />} />
 
         <Route
           path="/register"
-        element={<Registration />}
+          element={<Register />}
         />
 
+        <Route element={<ProtectedRoute />}>
+          <Route
+            path="/admin"
+            element={
+              <Navigate
+                to="/admin/dashboard"
+                replace
+              />
+            }
+          />
+
+          <Route
+            path="/staff"
+            element={
+              <Navigate
+                to="/staff/dashboard"
+                replace
+              />
+            }
+          />
+
+          <Route
+            path="/customer"
+            element={
+              <Navigate
+                to="/customer/dashboard"
+                replace
+              />
+            }
+          />
+        </Route>
+
         <Route
-        path="/"
-        element={<Login />}
+          element={
+            <ProtectedRoute
+              allowedRoles={["admin"]}
+            />
+          }
+        >
+          <Route
+            path="/admin/dashboard"
+            element={<AdminDashboard />}
+          />
+        </Route>
+
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={["staff"]}
+            />
+          }
+        >
+          <Route
+            path="/staff/dashboard"
+            element={<StaffDashboard />}
+          />
+        </Route>
+
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={["customer"]}
+            />
+          }
+        >
+          <Route
+            path="/customer/dashboard"
+            element={<CustomerDashboard />}
+          />
+        </Route>
+
+        <Route
+          path="*"
+          element={<HomeRedirect />}
         />
-        
       </Routes>
-    </BrowserRouter>
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        newestOnTop
+      />
+    </>
   );
-}
+};
 
 export default App;

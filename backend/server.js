@@ -1,83 +1,225 @@
-require("dotenv").config();
 
-const express = require("express");
-const cors = require("cors");
-
-const connectDB = require("./config/db");
-
-// Route Imports
-const authRoutes = require("./routes/authRoutes");
-const productRoutes = require("./routes/productRoutes");
-const customerRoutes = require("./routes/customerRoutes");
-const billingRoutes = require("./routes/billingRoutes");
-const reportRoutes = require("./routes/reportRoutes");
-
-const app = express();
-const dns = require ("dns");
+import dns from "dns";
 
 dns.setServers([
-  "1.1.1.1","8.8.8.8"
+  "8.8.8.8",
+  "8.8.4.4",
 ]);
 
+import "dotenv/config";
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import morgan from "morgan";
 
-// Connect Database
+import connectDB from "./config/db.js";
+
+import authRoutes from "./routes/authRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
+import inventoryRoutes from "./routes/inventoryRoutes.js";
+import customerRoutes from "./routes/customerRoutes.js";
+import orderRoutes from "./routes/orderRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+
+import {
+  notFound,
+  errorHandler,
+} from "./middleware/errorMiddleware.js";
+
+
+
+const app = express();
+
+const PORT = process.env.PORT || 5000;
+
+/*
+|--------------------------------------------------------------------------
+| Database
+|--------------------------------------------------------------------------
+*/
+
 connectDB();
 
-// Middleware
+/*
+|--------------------------------------------------------------------------
+| Security
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+
+app.use(compression());
+
+/*
+|--------------------------------------------------------------------------
+| Logging
+|--------------------------------------------------------------------------
+*/
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+}
+
+/*
+|--------------------------------------------------------------------------
+| CORS
+|--------------------------------------------------------------------------
+*/
+
 app.use(
   cors({
-    origin: "*",
+    origin:
+      process.env.CLENT_URL||
+      "http://localhost:5173",
+
     credentials: true,
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/*
+|--------------------------------------------------------------------------
+| Razorpay Webhook
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| Razorpay signature verification requires the ORIGINAL raw request body.
+|
+| Therefore this MUST be registered BEFORE express.json().
+|
+|--------------------------------------------------------------------------
+*/
 
-// Home Route
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Ice Cream Billing API Running",
-  });
-});
+app.post(
+  "/api/payments/webhook",
+  express.raw({
+    type: "application/json",
+  }),
+  async (req, res, next) => {
+    try {
+      const {
+        razorpayWebhook,
+      } = await import(
+        "./controllers/paymentController.js"
+      );
 
-// API Routes
+      await razorpayWebhook(req, res);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/*
+|--------------------------------------------------------------------------
+| Body Parsers
+|--------------------------------------------------------------------------
+|
+| These parsers are intentionally placed AFTER the Razorpay webhook.
+|
+|--------------------------------------------------------------------------
+*/
 
+app.use(
+  express.json({
+    limit: "10mb",
+  })
+);
 
-app.use("/api/auth", authRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/customers", customerRoutes);
-app.use("/api/billing", billingRoutes);
-app.use("/api/reports", reportRoutes);
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
 
-// 404 Route Handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: "Route Not Found",
-  });
-});
+/*
+|--------------------------------------------------------------------------
+| Health Check
+|--------------------------------------------------------------------------
+*/
 
-// Global Error Handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
+app.get(
+  "/api/health",
+  (req, res) => {
+    res.status(200).json({
+      success: true,
 
-  res.status(500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
+      message:
+        "IceCream Billing API is running",
 
-// Start Server
-const PORT = process.env.PORT || 5000;
+      environment:
+        process.env.NODE_ENV ||
+        "development",
 
-app.listen(PORT, () => {
-  console.log(
-    `🚀 Server running on http://localhost:${PORT}`
-  );
+      timestamp:
+        new Date().toISOString(),
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  "/api/auth",
+  authRoutes
+);
+
+app.use(
+  "/api/categories",
+  categoryRoutes
+);
+
+app.use(
+  "/api/products",
+  productRoutes
+);
+
+app.use(
+  "/api/inventory",
+  inventoryRoutes
+);
+
+app.use(
+  "/api/customers",
+  customerRoutes
+);
+
+app.use(
+  "/api/orders",
+  orderRoutes
+);
+
+app.use(
+  "/api/payments",
+  paymentRoutes
+);
+
+/*
+|--------------------------------------------------------------------------
+| Error Handling
+|--------------------------------------------------------------------------
+*/
+
+app.use(notFound);
+
+app.use(errorHandler);
+
+/*
+|--------------------------------------------------------------------------
+| Start Server
+|--------------------------------------------------------------------------
+*/
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🍦 IceCream Billing API running on port ${PORT}`);
 });

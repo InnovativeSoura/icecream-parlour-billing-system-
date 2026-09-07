@@ -1,95 +1,163 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+import User from "../models/User.js";
+import generateToken from "../utils/generateToken.js";
 
-const registerUser = async (req, res) => {
+export const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+    } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required",
+      });
+    }
 
     const existingUser = await User.findOne({
-      email,
+      email: email.toLowerCase(),
     });
 
     if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists",
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists",
       });
     }
 
-    const hashedPassword =
-      await bcrypt.hash(password, 10);
-
-    console.log("Request Body:", req.body);
-
-    const userData = {
+    const user = await User.create({
       name,
-      email,
-      password: hashedPassword
-    };
+      email: email.toLowerCase(),
+      phone: phone || "",
+      password,
 
-console.log("Creating User:", userData);
+      // Public registration ALWAYS creates customer.
+      // Admin/staff accounts will be created securely later.
+      role: "customer",
+    });
 
-const user = await User.create(userData);
+    const token = generateToken(user._id);
 
     res.status(201).json({
-      message: "Registration successful",
-      user,
+      success: true,
+      message: "Account created successfully",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+      },
     });
   } catch (error) {
+    console.error("Register error:", error);
+
     res.status(500).json({
-      message: error.message,
+      success: false,
+      message: "Unable to create account",
     });
   }
 };
 
-const loginUser = async (req, res) => {
+export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+      password,
+    } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
 
     const user = await User.findOne({
-      email,
-    });
+      email: email.toLowerCase(),
+    }).select("+password");
 
     if (!user) {
-      return res.status(404).json({
-        message: "User not found",
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
       });
     }
 
-    const match = await bcrypt.compare(
-      password,
-      user.password
-    );
-
-    if (!match) {
-      return res.status(400).json({
-        message: "Invalid credentials",
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been deactivated",
       });
     }
 
-    const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
+    const isPasswordValid =
+      await user.comparePassword(password);
 
-    res.json({
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    user.lastLogin = new Date();
+
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
       token,
-      user,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        lastLogin: user.lastLogin,
+      },
     });
   } catch (error) {
+    console.error("Login error:", error);
+
     res.status(500).json({
-      message: error.message,
+      success: false,
+      message: "Unable to login",
     });
   }
 };
 
-module.exports = {
-  registerUser,
-  loginUser,
+export const getCurrentUser = async (req, res) => {
+  try {
+    res.status(200).json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone,
+        role: req.user.role,
+        avatar: req.user.avatar,
+        isActive: req.user.isActive,
+        lastLogin: req.user.lastLogin,
+        createdAt: req.user.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Current user error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Unable to retrieve user",
+    });
+  }
 };

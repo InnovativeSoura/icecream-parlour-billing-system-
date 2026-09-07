@@ -1,41 +1,68 @@
-const express = require("express");
-const router = express.Router();
+import express from "express";
 
-const auth = require("../middleware/auth");
-const authorizeRoles = require("../middleware/roleMiddleware");
-
-const {
-  addProduct,
+import {
   getProducts,
+  getAvailableProducts,
+  getProductById,
+  createProduct,
   updateProduct,
   deleteProduct,
-} = require("../controllers/productController");
+} from "../controllers/productController.js";
 
-// Get All Products
-router.get("/", auth, getProducts);
+import {
+  protect,
+  authorize,
+} from "../middleware/authMiddleware.js";
 
-// Add Product (Admin Only)
-router.post(
-  "/",
-  auth,
-  authorizeRoles("admin"),
-  addProduct
+const router = express.Router();
+
+/*
+ * Public product browsing
+ */
+router.get(
+  "/available",
+  getAvailableProducts
 );
 
-// Update Product (Admin Only)
+/*
+ * Admin / Staff
+ */
+router.get(
+  "/",
+  protect,
+  authorize("admin", "staff"),
+  getProducts
+);
+
+router.get(
+  "/:id",
+  protect,
+  authorize("admin", "staff"),
+  getProductById
+);
+
+/*
+ * Admin only
+ */
+router.post(
+  "/",
+  protect,
+  authorize("admin"),
+  createProduct
+);
+
 router.put(
   "/:id",
-  auth,
-  authorizeRoles("admin"),
+  protect,
+  authorize("admin"),
   updateProduct
 );
 
-// Delete Product (Admin Only)
 router.delete(
   "/:id",
-  auth,
-  authorizeRoles("admin"),
+  protect,
+  authorize("admin"),
   deleteProduct
 );
 
-module.exports = router;
+export default router;

@@ -3,29 +3,33 @@
   "version": "1.0.0",
   "description": "Ice Cream Parlour Billing System Backend",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "keywords": [
-    "nodejs",
-    "express",
-    "mongodb",
-    "billing-system"
+    "icecream",
+    "billing",
+    "pos",
+    "razorpay",
+    "mern"
   ],
-  "author": "Souradipta",
+  "author": "IceCream Billing System",
   "license": "ISC",
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.24.0",
-    "pdfkit": "^0.17.2"
+    "bcryptjs": "^3.0.2",
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.18.0",
+    "morgan": "^1.10.1",
+    "razorpay": "^2.9.8"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
-  },
-  "type": "script"
+    "nodemon": "^3.1.10"
+  }
 }

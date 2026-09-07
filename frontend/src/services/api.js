@@ -1,17 +1,19 @@
 import axios from "axios";
 
-// Change this URL after deploying backend
-const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+const api = axios.create({
+  baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Add JWT token automatically
-API.interceptors.request.use(
+// Attach JWT automatically
+api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("icecream_token");
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -22,66 +24,26 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-/* ==========================
-   AUTH APIs
-========================== */
+// Handle expired/invalid authentication
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const currentPath = window.location.pathname;
 
-export const loginUser = (userData) =>
-  API.post("/auth/login", userData);
+      localStorage.removeItem("icecream_token");
+      localStorage.removeItem("icecream_user");
 
-export const registerUser = (userData) =>
-  API.post("/auth/register", userData);
+      if (
+        currentPath !== "/login" &&
+        currentPath !== "/register"
+      ) {
+        window.location.href = "/login";
+      }
+    }
 
-/* ==========================
-   PRODUCT APIs
-========================== */
+    return Promise.reject(error);
+  }
+);
 
-export const getProducts = () =>
-  API.get("/products");
-
-export const getProductById = (id) =>
-  API.get(`/products/${id}`);
-
-export const addProduct = (productData) =>
-  API.post("/products", productData);
-
-export const updateProduct = (id, productData) =>
-  API.put(`/products/${id}`, productData);
-
-export const deleteProduct = (id) =>
-  API.delete(`/products/${id}`);
-
-/* ==========================
-   ORDER APIs
-========================== */
-
-export const createOrder = (orderData) =>
-  API.post("/orders", orderData);
-
-export const getOrders = () =>
-  API.get("/orders");
-
-export const getOrderById = (id) =>
-  API.get(`/orders/${id}`);
-
-/* ==========================
-   REPORT APIs
-========================== */
-
-export const getDailyReport = () =>
-  API.get("/reports/daily");
-
-export const getMonthlyReport = () =>
-  API.get("/reports/monthly");
-
-/* ==========================
-   INVENTORY APIs
-========================== */
-
-export const getInventory = () =>
-  API.get("/inventory");
-
-export const updateInventory = (id, data) =>
-  API.put(`/inventory/${id}`, data);
-
-export default API;
+export default api;
