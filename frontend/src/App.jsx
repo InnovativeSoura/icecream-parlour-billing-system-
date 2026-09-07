@@ -10,9 +10,9 @@ import "react-toastify/dist/ReactToastify.css";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-import AdminDashboard from "./pages/AdminDashboard";
-import StaffDashboard from "./pages/StaffDashboard";
-import CustomerDashboard from "./pages/CustomerDashboard";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import StaffDashboard from "./pages/StaffDashboard.jsx";
+import CustomerDashboard from "./pages/CustomerDashboard.jsx";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
