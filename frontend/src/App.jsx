@@ -45,14 +45,28 @@ const App = () => {
   return (
     <>
       <Routes>
-        <Route path="/" element={<HomeRedirect />} />
+        {/* =========================
+            PUBLIC ROUTES
+        ========================== */}
 
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={<HomeRedirect />}
+        />
+
+        <Route
+          path="/login"
+          element={<Login />}
+        />
 
         <Route
           path="/register"
           element={<Register />}
         />
+
+        {/* =========================
+            GENERIC PROTECTED ROUTES
+        ========================== */}
 
         <Route element={<ProtectedRoute />}>
           <Route
@@ -86,6 +100,10 @@ const App = () => {
           />
         </Route>
 
+        {/* =========================
+            ADMIN ROUTES
+        ========================== */}
+
         <Route
           element={
             <ProtectedRoute
@@ -98,6 +116,10 @@ const App = () => {
             element={<AdminDashboard />}
           />
         </Route>
+
+        {/* =========================
+            STAFF ROUTES
+        ========================== */}
 
         <Route
           element={
@@ -112,6 +134,10 @@ const App = () => {
           />
         </Route>
 
+        {/* =========================
+            CUSTOMER ROUTES
+        ========================== */}
+
         <Route
           element={
             <ProtectedRoute
@@ -124,6 +150,28 @@ const App = () => {
             element={<CustomerDashboard />}
           />
         </Route>
+
+        {/* =========================
+            PRODUCTS
+            ADMIN + STAFF
+        ========================== */}
+
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={["admin", "staff"]}
+            />
+          }
+        >
+          <Route
+            path="/products"
+            element={<Products />}
+          />
+        </Route>
+
+        {/* =========================
+            FALLBACK
+        ========================== */}
 
         <Route
           path="*"
