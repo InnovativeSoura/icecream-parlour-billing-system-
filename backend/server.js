@@ -184,6 +184,15 @@ app.get(
 | API Routes
 |--------------------------------------------------------------------------
 */
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "🍦 IceCream Billing API is running",
+    version: "1.0.0",
+    environment: process.env.NODE_ENV || "development",
+    health: "/api/health",
+  });
+});
 
 app.use(
   "/api/auth",
