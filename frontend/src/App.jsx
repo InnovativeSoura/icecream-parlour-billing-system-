@@ -13,6 +13,7 @@ import Register from "./pages/Register";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
+import Products from "./pages/Products.jsx";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
