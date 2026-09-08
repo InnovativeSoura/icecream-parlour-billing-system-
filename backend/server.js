@@ -1,4 +1,3 @@
-
 import dns from "dns";
 
 dns.setServers([
@@ -27,8 +26,6 @@ import {
   notFound,
   errorHandler,
 } from "./middleware/errorMiddleware.js";
-
-
 
 const app = express();
 
@@ -72,11 +69,30 @@ if (process.env.NODE_ENV !== "production") {
 |--------------------------------------------------------------------------
 */
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin:
-      process.env.CLENT_URL||
-      "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // such as server-to-server requests and Razorpay webhooks.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`🚫 CORS blocked origin: ${origin}`);
+
+      return callback(
+        new Error(`CORS policy blocked origin: ${origin}`)
+      );
+    },
 
     credentials: true,
   })
@@ -220,6 +236,17 @@ app.use(errorHandler);
 |--------------------------------------------------------------------------
 */
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🍦 IceCream Billing API running on port ${PORT}`);
-});
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `🍦 IceCream Billing API running on port ${PORT}`
+    );
+
+    console.log(
+      "🌐 Allowed CORS origins:",
+      allowedOrigins
+    );
+  }
+);
