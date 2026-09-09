@@ -1,3 +1,5 @@
+// frontend/src/App.jsx
+
 import {
   Navigate,
   Route,
@@ -7,32 +9,35 @@ import {
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// =========================
+// =====================================================
 // PUBLIC PAGES
-// =========================
+// =====================================================
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-// =========================
+// =====================================================
 // DASHBOARDS
-// =========================
-import AdminDashboard from "./pages/AdminDashboard.jsx";
+// =====================================================
+
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
 
-// =========================
-// ADMIN / STAFF MANAGEMENT
-// =========================
+// =====================================================
+// ADMIN / STAFF
+// =====================================================
+
 import Products from "./pages/Products.jsx";
 import Inventory from "./pages/Inventory.jsx";
 import Customer from "./pages/Customers.jsx";
 
-// =========================
+// =====================================================
 // AUTH
-// =========================
+// =====================================================
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
-
 
 // =====================================================
 // HOME REDIRECT
@@ -41,30 +46,64 @@ import { useAuth } from "./context/AuthContext";
 const HomeRedirect = () => {
   const { user, loading } = useAuth();
 
-  // Wait until authentication state is restored
   if (loading) {
-    return null;
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          fontFamily: "Arial, sans-serif",
+        }}
+      >
+        Loading...
+      </div>
+    );
   }
 
-  // Not logged in
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+      />
+    );
   }
 
-  // Admin
   if (user.role === "admin") {
-    return <Navigate to="/admin" replace />;
+    return (
+      <Navigate
+        to="/admin/dashboard"
+        replace
+      />
+    );
   }
 
-  // Staff
   if (user.role === "staff") {
-    return <Navigate to="/staff" replace />;
+    return (
+      <Navigate
+        to="/staff/dashboard"
+        replace
+      />
+    );
   }
 
-  // Customer
-  return <Navigate to="/customer" replace />;
-};
+  if (user.role === "customer") {
+    return (
+      <Navigate
+        to="/customer/dashboard"
+        replace
+      />
+    );
+  }
 
+  return (
+    <Navigate
+      to="/login"
+      replace
+    />
+  );
+};
 
 // =====================================================
 // APP
@@ -76,7 +115,7 @@ const App = () => {
       <Routes>
 
         {/* =================================================
-            PUBLIC ROUTES
+            PUBLIC
         ================================================= */}
 
         <Route
@@ -94,52 +133,8 @@ const App = () => {
           element={<Register />}
         />
 
-
         {/* =================================================
-            GENERIC PROTECTED ROUTES
-            Any authenticated user can access these redirects
-        ================================================= */}
-
-        <Route element={<ProtectedRoute />}>
-
-          {/* /admin → /admin/dashboard */}
-          <Route
-            path="/admin"
-            element={
-              <Navigate
-                to="/admin/dashboard"
-                replace
-              />
-            }
-          />
-
-          {/* /staff → /staff/dashboard */}
-          <Route
-            path="/staff"
-            element={
-              <Navigate
-                to="/staff/dashboard"
-                replace
-              />
-            }
-          />
-
-          {/* /customer → /customer/dashboard */}
-          <Route
-            path="/customer"
-            element={
-              <Navigate
-                to="/customer/dashboard"
-                replace
-              />
-            }
-          />
-
-        </Route>
-
-
-        {/* =================================================
-            ADMIN ROUTES
+            ADMIN ENTRY
         ================================================= */}
 
         <Route
@@ -151,15 +146,24 @@ const App = () => {
         >
 
           <Route
+            path="/admin"
+            element={
+              <Navigate
+                to="/admin/dashboard"
+                replace
+              />
+            }
+          />
+
+          <Route
             path="/admin/dashboard"
             element={<AdminDashboard />}
           />
 
         </Route>
 
-
         {/* =================================================
-            STAFF ROUTES
+            STAFF ENTRY
         ================================================= */}
 
         <Route
@@ -171,15 +175,24 @@ const App = () => {
         >
 
           <Route
+            path="/staff"
+            element={
+              <Navigate
+                to="/staff/dashboard"
+                replace
+              />
+            }
+          />
+
+          <Route
             path="/staff/dashboard"
             element={<StaffDashboard />}
           />
 
         </Route>
 
-
         {/* =================================================
-            CUSTOMER ROUTES
+            CUSTOMER ENTRY
         ================================================= */}
 
         <Route
@@ -191,12 +204,21 @@ const App = () => {
         >
 
           <Route
+            path="/customer"
+            element={
+              <Navigate
+                to="/customer/dashboard"
+                replace
+              />
+            }
+          />
+
+          <Route
             path="/customer/dashboard"
             element={<CustomerDashboard />}
           />
 
         </Route>
-
 
         {/* =================================================
             PRODUCTS
@@ -218,7 +240,6 @@ const App = () => {
 
         </Route>
 
-
         {/* =================================================
             INVENTORY
             ADMIN + STAFF
@@ -238,7 +259,6 @@ const App = () => {
           />
 
         </Route>
-
 
         {/* =================================================
             CUSTOMERS
@@ -260,7 +280,6 @@ const App = () => {
 
         </Route>
 
-
         {/* =================================================
             FALLBACK
         ================================================= */}
@@ -272,9 +291,8 @@ const App = () => {
 
       </Routes>
 
-
       {/* =================================================
-          GLOBAL TOAST NOTIFICATIONS
+          TOAST
       ================================================= */}
 
       <ToastContainer
@@ -282,7 +300,6 @@ const App = () => {
         autoClose={3000}
         newestOnTop
       />
-
     </>
   );
 };
