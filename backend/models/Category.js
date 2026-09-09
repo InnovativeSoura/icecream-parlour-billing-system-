@@ -6,8 +6,14 @@ const categorySchema = new mongoose.Schema(
       type: String,
       required: [true, "Category name is required"],
       trim: true,
-      minlength: [2, "Category name must contain at least 2 characters"],
-      maxlength: [50, "Category name cannot exceed 50 characters"],
+      minlength: [
+        2,
+        "Category name must contain at least 2 characters",
+      ],
+      maxlength: [
+        50,
+        "Category name cannot exceed 50 characters",
+      ],
     },
 
     slug: {
@@ -21,7 +27,10 @@ const categorySchema = new mongoose.Schema(
     description: {
       type: String,
       trim: true,
-      maxlength: [500, "Description cannot exceed 500 characters"],
+      maxlength: [
+        500,
+        "Description cannot exceed 500 characters",
+      ],
       default: "",
     },
 
@@ -34,6 +43,7 @@ const categorySchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true,
+      index: true,
     },
 
     sortOrder: {
@@ -48,9 +58,11 @@ const categorySchema = new mongoose.Schema(
 );
 
 /*
- * Automatically generate a slug when creating
- * or changing the category name.
- */
+|--------------------------------------------------------------------------
+| Generate slug automatically
+|--------------------------------------------------------------------------
+*/
+
 categorySchema.pre("validate", function (next) {
   if (this.isModified("name") || !this.slug) {
     this.slug = this.name
@@ -63,6 +75,9 @@ categorySchema.pre("validate", function (next) {
   next();
 });
 
-const Category = mongoose.model("Category", categorySchema);
+const Category = mongoose.model(
+  "Category",
+  categorySchema
+);
 
 export default Category;

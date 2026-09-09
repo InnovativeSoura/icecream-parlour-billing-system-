@@ -79,6 +79,10 @@ const Products = () => {
 
   const isAdmin = user?.role === "admin";
 
+  // --------------------------------------------------
+  // FETCH PRODUCTS
+  // --------------------------------------------------
+
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
@@ -101,11 +105,27 @@ const Products = () => {
         params.isAvailable = availabilityFilter === "available";
       }
 
-      const response = await api.get("/products", { params });
+      const response = await api.get("/products", {
+        params,
+      });
 
-      setProducts(response.data?.products || []);
+      const productList =
+        response.data?.products ||
+        response.data?.data ||
+        (Array.isArray(response.data)
+          ? response.data
+          : []);
+
+      setProducts(
+        Array.isArray(productList)
+          ? productList
+          : []
+      );
     } catch (error) {
-      console.error("Fetch products error:", error);
+      console.error(
+        "Fetch products error:",
+        error
+      );
 
       toast.error(
         error.response?.data?.message ||
@@ -123,15 +143,44 @@ const Products = () => {
     availabilityFilter,
   ]);
 
+  // --------------------------------------------------
+  // FETCH ACTIVE CATEGORIES
+  // --------------------------------------------------
+
   const fetchCategories = useCallback(async () => {
     try {
       setCategoriesLoading(true);
 
-      const response = await api.get("/categories");
+      const response = await api.get(
+        "/categories/active"
+      );
 
-      setCategories(response.data?.categories || []);
+      const data = response.data;
+
+      const categoryList =
+        data?.categories ||
+        data?.data ||
+        (Array.isArray(data)
+          ? data
+          : []);
+
+      const normalizedCategories =
+        Array.isArray(categoryList)
+          ? categoryList.filter(
+              (category) =>
+                category &&
+                (category._id ||
+                  category.id) &&
+                category.name
+            )
+          : [];
+
+      setCategories(normalizedCategories);
     } catch (error) {
-      console.error("Fetch categories error:", error);
+      console.error(
+        "Fetch categories error:",
+        error
+      );
 
       toast.error(
         error.response?.data?.message ||
@@ -156,6 +205,10 @@ const Products = () => {
     return () => clearTimeout(timer);
   }, [fetchProducts]);
 
+  // --------------------------------------------------
+  // STATISTICS
+  // --------------------------------------------------
+
   const statistics = useMemo(() => {
     const total = products.length;
 
@@ -179,8 +232,12 @@ const Products = () => {
     };
   }, [products]);
 
+  // --------------------------------------------------
+  // FORM
+  // --------------------------------------------------
+
   const resetForm = () => {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM });
     setEditingProduct(null);
   };
 
@@ -211,6 +268,7 @@ const Products = () => {
       sku: product.sku || "",
       category:
         product.category?._id ||
+        product.category?.id ||
         product.category ||
         "",
       description: product.description || "",
@@ -249,15 +307,25 @@ const Products = () => {
   };
 
   const handleChange = (event) => {
-    const { name, value, type, checked } =
-      event.target;
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target;
 
     setForm((previous) => ({
       ...previous,
       [name]:
-        type === "checkbox" ? checked : value,
+        type === "checkbox"
+          ? checked
+          : value,
     }));
   };
+
+  // --------------------------------------------------
+  // CREATE / UPDATE PRODUCT
+  // --------------------------------------------------
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -270,7 +338,9 @@ const Products = () => {
     }
 
     if (!form.name.trim()) {
-      toast.error("Product name is required.");
+      toast.error(
+        "Product name is required."
+      );
       return;
     }
 
@@ -280,7 +350,9 @@ const Products = () => {
     }
 
     if (!form.category) {
-      toast.error("Please select a category.");
+      toast.error(
+        "Please select a category."
+      );
       return;
     }
 
@@ -288,7 +360,9 @@ const Products = () => {
       form.price === "" ||
       Number(form.price) < 0
     ) {
-      toast.error("Please enter a valid selling price.");
+      toast.error(
+        "Please enter a valid selling price."
+      );
       return;
     }
 
@@ -297,19 +371,30 @@ const Products = () => {
 
       const payload = {
         name: form.name.trim(),
-        sku: form.sku.trim().toUpperCase(),
+        sku: form.sku
+          .trim()
+          .toUpperCase(),
         category: form.category,
-        description: form.description.trim(),
+        description:
+          form.description.trim(),
         image: form.image.trim(),
         price: Number(form.price),
-        costPrice: Number(form.costPrice || 0),
-        taxRate: Number(form.taxRate || 0),
+        costPrice: Number(
+          form.costPrice || 0
+        ),
+        taxRate: Number(
+          form.taxRate || 0
+        ),
         unit: form.unit,
         lowStockThreshold: Number(
           form.lowStockThreshold || 0
         ),
-        isAvailable: Boolean(form.isAvailable),
-        isActive: Boolean(form.isActive),
+        isAvailable: Boolean(
+          form.isAvailable
+        ),
+        isActive: Boolean(
+          form.isActive
+        ),
       };
 
       if (editingProduct) {
@@ -322,7 +407,10 @@ const Products = () => {
           "Product updated successfully."
         );
       } else {
-        await api.post("/products", payload);
+        await api.post(
+          "/products",
+          payload
+        );
 
         toast.success(
           "Product created successfully."
@@ -334,7 +422,10 @@ const Products = () => {
 
       await fetchProducts();
     } catch (error) {
-      console.error("Save product error:", error);
+      console.error(
+        "Save product error:",
+        error
+      );
 
       toast.error(
         error.response?.data?.message ||
@@ -344,6 +435,10 @@ const Products = () => {
       setSaving(false);
     }
   };
+
+  // --------------------------------------------------
+  // DELETE PRODUCT
+  // --------------------------------------------------
 
   const handleDelete = async (product) => {
     if (!isAdmin) {
@@ -372,7 +467,10 @@ const Products = () => {
 
       await fetchProducts();
     } catch (error) {
-      console.error("Delete product error:", error);
+      console.error(
+        "Delete product error:",
+        error
+      );
 
       toast.error(
         error.response?.data?.message ||
@@ -382,6 +480,10 @@ const Products = () => {
       setDeletingId(null);
     }
   };
+
+  // --------------------------------------------------
+  // FILTERS
+  // --------------------------------------------------
 
   const clearFilters = () => {
     setSearch("");
@@ -396,17 +498,32 @@ const Products = () => {
     statusFilter !== "all" ||
     availabilityFilter !== "all";
 
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+
   const getCategoryName = (product) => {
     if (product.category?.name) {
       return product.category.name;
     }
 
+    const productCategoryId =
+      product.category?._id ||
+      product.category?.id ||
+      product.category;
+
     const category = categories.find(
       (item) =>
-        item._id === product.category
+        String(
+          item._id || item.id
+        ) ===
+        String(productCategoryId)
     );
 
-    return category?.name || "Uncategorized";
+    return (
+      category?.name ||
+      "Uncategorized"
+    );
   };
 
   const getInitials = (name = "") => {
@@ -415,7 +532,9 @@ const Products = () => {
       .split(/\s+/)
       .filter(Boolean);
 
-    if (!words.length) return "IC";
+    if (!words.length) {
+      return "IC";
+    }
 
     if (words.length === 1) {
       return words[0]
@@ -427,22 +546,33 @@ const Products = () => {
   };
 
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 2,
-    }).format(Number(value || 0));
+    return new Intl.NumberFormat(
+      "en-IN",
+      {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 2,
+      }
+    ).format(Number(value || 0));
   };
+
+  // --------------------------------------------------
+  // UI
+  // --------------------------------------------------
 
   return (
     <div className="products-page">
       <div className="products-background">
         <div className="products-grid" />
+
         <div className="products-orb products-orb-one" />
+
         <div className="products-orb products-orb-two" />
       </div>
 
       <div className="products-container">
+        {/* HEADER */}
+
         <header className="products-header">
           <div className="products-heading">
             <div className="products-heading-icon">
@@ -451,16 +581,23 @@ const Products = () => {
 
             <div>
               <div className="products-breadcrumb">
-                <span>Management</span>
+                <span>
+                  Management
+                </span>
+
                 <span>/</span>
-                <strong>Products</strong>
+
+                <strong>
+                  Products
+                </strong>
               </div>
 
               <h1>Products</h1>
 
               <p>
-                Manage your ice cream catalogue,
-                pricing and availability.
+                Manage your ice cream
+                catalogue, pricing and
+                availability.
               </p>
             </div>
           </div>
@@ -472,10 +609,14 @@ const Products = () => {
               onClick={openAddModal}
             >
               <FaPlus />
-              <span>Add Product</span>
+              <span>
+                Add Product
+              </span>
             </button>
           )}
         </header>
+
+        {/* STATISTICS */}
 
         <section className="products-stat-grid">
           <div className="product-stat-card">
@@ -484,8 +625,13 @@ const Products = () => {
             </div>
 
             <div>
-              <span>Total Products</span>
-              <strong>{statistics.total}</strong>
+              <span>
+                Total Products
+              </span>
+
+              <strong>
+                {statistics.total}
+              </strong>
             </div>
           </div>
 
@@ -495,8 +641,13 @@ const Products = () => {
             </div>
 
             <div>
-              <span>Active Products</span>
-              <strong>{statistics.active}</strong>
+              <span>
+                Active Products
+              </span>
+
+              <strong>
+                {statistics.active}
+              </strong>
             </div>
           </div>
 
@@ -506,8 +657,13 @@ const Products = () => {
             </div>
 
             <div>
-              <span>Available</span>
-              <strong>{statistics.available}</strong>
+              <span>
+                Available
+              </span>
+
+              <strong>
+                {statistics.available}
+              </strong>
             </div>
           </div>
 
@@ -517,7 +673,10 @@ const Products = () => {
             </div>
 
             <div>
-              <span>Unavailable</span>
+              <span>
+                Unavailable
+              </span>
+
               <strong>
                 {statistics.unavailable}
               </strong>
@@ -525,7 +684,11 @@ const Products = () => {
           </div>
         </section>
 
+        {/* MAIN PANEL */}
+
         <section className="products-panel">
+          {/* TOOLBAR */}
+
           <div className="products-toolbar">
             <div className="products-search">
               <FaSearch />
@@ -534,7 +697,9 @@ const Products = () => {
                 type="text"
                 value={search}
                 onChange={(event) =>
-                  setSearch(event.target.value)
+                  setSearch(
+                    event.target.value
+                  )
                 }
                 placeholder="Search by product name or SKU..."
               />
@@ -542,7 +707,9 @@ const Products = () => {
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() =>
+                    setSearch("")
+                  }
                   className="search-clear"
                   aria-label="Clear search"
                 >
@@ -554,29 +721,38 @@ const Products = () => {
             <button
               type="button"
               className={`filter-toggle ${
-                showFilters ? "active" : ""
+                showFilters
+                  ? "active"
+                  : ""
               }`}
               onClick={() =>
                 setShowFilters(
-                  (previous) => !previous
+                  (previous) =>
+                    !previous
                 )
               }
             >
               <FaFilter />
-              <span>Filters</span>
+
+              <span>
+                Filters
+              </span>
 
               {hasFilters && (
                 <b>
                   {
                     [
                       categoryFilter,
-                      statusFilter !== "all"
+                      statusFilter !==
+                      "all"
                         ? statusFilter
                         : "",
-                      availabilityFilter !== "all"
+                      availabilityFilter !==
+                      "all"
                         ? availabilityFilter
                         : "",
-                    ].filter(Boolean).length
+                    ].filter(Boolean)
+                      .length
                   }
                 </b>
               )}
@@ -585,16 +761,22 @@ const Products = () => {
             </button>
           </div>
 
+          {/* FILTERS */}
+
           {showFilters && (
             <div className="products-filters">
               <div className="filter-field">
-                <label>Category</label>
+                <label>
+                  Category
+                </label>
 
                 <div className="select-wrapper">
                   <FaLayerGroup />
 
                   <select
-                    value={categoryFilter}
+                    value={
+                      categoryFilter
+                    }
                     onChange={(event) =>
                       setCategoryFilter(
                         event.target.value
@@ -605,14 +787,24 @@ const Products = () => {
                       All Categories
                     </option>
 
-                    {categories.map((category) => (
-                      <option
-                        key={category._id}
-                        value={category._id}
-                      >
-                        {category.name}
-                      </option>
-                    ))}
+                    {categories.map(
+                      (category) => (
+                        <option
+                          key={
+                            category._id ||
+                            category.id
+                          }
+                          value={
+                            category._id ||
+                            category.id
+                          }
+                        >
+                          {
+                            category.name
+                          }
+                        </option>
+                      )
+                    )}
                   </select>
 
                   <FaChevronDown />
@@ -620,13 +812,17 @@ const Products = () => {
               </div>
 
               <div className="filter-field">
-                <label>Status</label>
+                <label>
+                  Status
+                </label>
 
                 <div className="select-wrapper">
                   <FaCircle />
 
                   <select
-                    value={statusFilter}
+                    value={
+                      statusFilter
+                    }
                     onChange={(event) =>
                       setStatusFilter(
                         event.target.value
@@ -636,9 +832,11 @@ const Products = () => {
                     <option value="all">
                       All Status
                     </option>
+
                     <option value="active">
                       Active
                     </option>
+
                     <option value="inactive">
                       Inactive
                     </option>
@@ -649,13 +847,17 @@ const Products = () => {
               </div>
 
               <div className="filter-field">
-                <label>Availability</label>
+                <label>
+                  Availability
+                </label>
 
                 <div className="select-wrapper">
                   <FaCheckCircle />
 
                   <select
-                    value={availabilityFilter}
+                    value={
+                      availabilityFilter
+                    }
                     onChange={(event) =>
                       setAvailabilityFilter(
                         event.target.value
@@ -665,9 +867,11 @@ const Products = () => {
                     <option value="all">
                       All Products
                     </option>
+
                     <option value="available">
                       Available
                     </option>
+
                     <option value="unavailable">
                       Unavailable
                     </option>
@@ -681,7 +885,9 @@ const Products = () => {
                 <button
                   type="button"
                   className="clear-filters-btn"
-                  onClick={clearFilters}
+                  onClick={
+                    clearFilters
+                  }
                 >
                   <FaTimes />
                   Clear Filters
@@ -690,14 +896,20 @@ const Products = () => {
             </div>
           )}
 
+          {/* TABLE HEADER */}
+
           <div className="products-table-header">
             <div>
-              <h2>Product Catalogue</h2>
+              <h2>
+                Product Catalogue
+              </h2>
+
               <span>
                 {loading
                   ? "Loading..."
                   : `${products.length} product${
-                      products.length === 1
+                      products.length ===
+                      1
                         ? ""
                         : "s"
                     }`}
@@ -707,22 +919,29 @@ const Products = () => {
             {categoriesLoading && (
               <div className="category-loading">
                 <FaSpinner />
+
                 Loading categories
               </div>
             )}
           </div>
 
+          {/* LOADING */}
+
           {loading ? (
             <div className="products-loading">
               <FaSpinner className="products-spinner" />
 
-              <h3>Loading products</h3>
+              <h3>
+                Loading products
+              </h3>
 
               <p>
-                Fetching your product catalogue...
+                Fetching your product
+                catalogue...
               </p>
             </div>
-          ) : products.length === 0 ? (
+          ) : products.length ===
+            0 ? (
             <div className="products-empty">
               <div className="empty-icon">
                 <FaBoxOpen />
@@ -744,7 +963,9 @@ const Products = () => {
                 <button
                   type="button"
                   className="empty-action"
-                  onClick={clearFilters}
+                  onClick={
+                    clearFilters
+                  }
                 >
                   Clear Filters
                 </button>
@@ -753,7 +974,9 @@ const Products = () => {
                   <button
                     type="button"
                     className="empty-action"
-                    onClick={openAddModal}
+                    onClick={
+                      openAddModal
+                    }
                   >
                     <FaPlus />
                     Add First Product
@@ -766,13 +989,26 @@ const Products = () => {
               <table className="products-table">
                 <thead>
                   <tr>
-                    <th>Product</th>
+                    <th>
+                      Product
+                    </th>
+
                     <th>SKU</th>
-                    <th>Category</th>
+
+                    <th>
+                      Category
+                    </th>
+
                     <th>Price</th>
+
                     <th>Tax</th>
+
                     <th>Unit</th>
-                    <th>Availability</th>
+
+                    <th>
+                      Availability
+                    </th>
+
                     {isAdmin && (
                       <th className="actions-heading">
                         Actions
@@ -782,157 +1018,184 @@ const Products = () => {
                 </thead>
 
                 <tbody>
-                  {products.map((product) => (
-                    <tr key={product._id}>
-                      <td>
-                        <div className="product-name-cell">
-                          <div className="product-image">
-                            {product.image ? (
-                              <img
-                                src={product.image}
-                                alt={product.name}
-                                onError={(event) => {
-                                  event.currentTarget.style.display =
-                                    "none";
-
-                                  event.currentTarget.parentElement.classList.add(
-                                    "fallback"
-                                  );
-                                }}
-                              />
-                            ) : (
-                              <span>
-                                {getInitials(
-                                  product.name
-                                )}
-                              </span>
-                            )}
-                          </div>
-
-                          <div>
-                            <strong>
-                              {product.name}
-                            </strong>
-
-                            {product.description && (
-                              <small>
-                                {product.description}
-                              </small>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="sku-badge">
-                          {product.sku}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="category-cell">
-                          <FaTags />
-                          {getCategoryName(product)}
-                        </div>
-                      </td>
-
-                      <td>
-                        <strong className="price-cell">
-                          {formatCurrency(
-                            product.price
-                          )}
-                        </strong>
-                      </td>
-
-                      <td>
-                        <span className="tax-cell">
-                          {product.taxRate ?? 0}%
-                        </span>
-                      </td>
-
-                      <td>
-                        <span className="unit-badge">
-                          {product.unit || "piece"}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="status-stack">
-                          <span
-                            className={`status-badge ${
-                              product.isActive
-                                ? "active"
-                                : "inactive"
-                            }`}
-                          >
-                            <FaCircle />
-                            {product.isActive
-                              ? "Active"
-                              : "Inactive"}
-                          </span>
-
-                          <span
-                            className={`availability-badge ${
-                              product.isAvailable
-                                ? "available"
-                                : "unavailable"
-                            }`}
-                          >
-                            {product.isAvailable
-                              ? "Available"
-                              : "Unavailable"}
-                          </span>
-                        </div>
-                      </td>
-
-                      {isAdmin && (
+                  {products.map(
+                    (product) => (
+                      <tr
+                        key={
+                          product._id
+                        }
+                      >
                         <td>
-                          <div className="product-actions">
-                            <button
-                              type="button"
-                              className="action-btn edit"
-                              title="Edit product"
-                              onClick={() =>
-                                openEditModal(
-                                  product
-                                )
-                              }
-                            >
-                              <FaEdit />
-                            </button>
+                          <div className="product-name-cell">
+                            <div className="product-image">
+                              {product.image ? (
+                                <img
+                                  src={
+                                    product.image
+                                  }
+                                  alt={
+                                    product.name
+                                  }
+                                  onError={(
+                                    event
+                                  ) => {
+                                    event.currentTarget.style.display =
+                                      "none";
 
-                            <button
-                              type="button"
-                              className="action-btn delete"
-                              title="Delete product"
-                              disabled={
-                                deletingId ===
-                                product._id
-                              }
-                              onClick={() =>
-                                handleDelete(
-                                  product
-                                )
-                              }
-                            >
-                              {deletingId ===
-                              product._id ? (
-                                <FaSpinner className="button-spinner" />
+                                    event.currentTarget.parentElement.classList.add(
+                                      "fallback"
+                                    );
+                                  }}
+                                />
                               ) : (
-                                <FaTrash />
+                                <span>
+                                  {getInitials(
+                                    product.name
+                                  )}
+                                </span>
                               )}
-                            </button>
+                            </div>
+
+                            <div>
+                              <strong>
+                                {
+                                  product.name
+                                }
+                              </strong>
+
+                              {product.description && (
+                                <small>
+                                  {
+                                    product.description
+                                  }
+                                </small>
+                              )}
+                            </div>
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+
+                        <td>
+                          <span className="sku-badge">
+                            {
+                              product.sku
+                            }
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="category-cell">
+                            <FaTags />
+
+                            {getCategoryName(
+                              product
+                            )}
+                          </div>
+                        </td>
+
+                        <td>
+                          <strong className="price-cell">
+                            {formatCurrency(
+                              product.price
+                            )}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <span className="tax-cell">
+                            {product.taxRate ??
+                              0}
+                            %
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="unit-badge">
+                            {product.unit ||
+                              "piece"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="status-stack">
+                            <span
+                              className={`status-badge ${
+                                product.isActive
+                                  ? "active"
+                                  : "inactive"
+                              }`}
+                            >
+                              <FaCircle />
+
+                              {product.isActive
+                                ? "Active"
+                                : "Inactive"}
+                            </span>
+
+                            <span
+                              className={`availability-badge ${
+                                product.isAvailable
+                                  ? "available"
+                                  : "unavailable"
+                              }`}
+                            >
+                              {product.isAvailable
+                                ? "Available"
+                                : "Unavailable"}
+                            </span>
+                          </div>
+                        </td>
+
+                        {isAdmin && (
+                          <td>
+                            <div className="product-actions">
+                              <button
+                                type="button"
+                                className="action-btn edit"
+                                title="Edit product"
+                                onClick={() =>
+                                  openEditModal(
+                                    product
+                                  )
+                                }
+                              >
+                                <FaEdit />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="action-btn delete"
+                                title="Delete product"
+                                disabled={
+                                  deletingId ===
+                                  product._id
+                                }
+                                onClick={() =>
+                                  handleDelete(
+                                    product
+                                  )
+                                }
+                              >
+                                {deletingId ===
+                                product._id ? (
+                                  <FaSpinner className="button-spinner" />
+                                ) : (
+                                  <FaTrash />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
           )}
         </section>
       </div>
+
+      {/* PRODUCT MODAL */}
 
       {showModal && (
         <div
@@ -988,10 +1251,14 @@ const Products = () => {
               className="product-form"
               onSubmit={handleSubmit}
             >
+              {/* BASIC INFORMATION */}
+
               <div className="form-section">
                 <div className="form-section-title">
                   <FaBoxOpen />
-                  <span>Basic Information</span>
+                  <span>
+                    Basic Information
+                  </span>
                 </div>
 
                 <div className="form-grid">
@@ -1004,8 +1271,12 @@ const Products = () => {
                     <input
                       type="text"
                       name="name"
-                      value={form.name}
-                      onChange={handleChange}
+                      value={
+                        form.name
+                      }
+                      onChange={
+                        handleChange
+                      }
                       placeholder="e.g. Belgian Chocolate Scoop"
                       maxLength={150}
                       required
@@ -1021,12 +1292,18 @@ const Products = () => {
                     <input
                       type="text"
                       name="sku"
-                      value={form.sku}
-                      onChange={handleChange}
+                      value={
+                        form.sku
+                      }
+                      onChange={
+                        handleChange
+                      }
                       placeholder="e.g. CHOC-001"
                       required
                     />
                   </div>
+
+                  {/* CATEGORY */}
 
                   <div className="form-field">
                     <label>
@@ -1037,21 +1314,41 @@ const Products = () => {
                     <div className="form-select">
                       <select
                         name="category"
-                        value={form.category}
-                        onChange={handleChange}
+                        value={
+                          form.category
+                        }
+                        onChange={
+                          handleChange
+                        }
                         required
+                        disabled={
+                          categoriesLoading
+                        }
                       >
                         <option value="">
-                          Select category
+                          {categoriesLoading
+                            ? "Loading categories..."
+                            : categories.length ===
+                              0
+                            ? "No categories available"
+                            : "Select category"}
                         </option>
 
                         {categories.map(
                           (category) => (
                             <option
-                              key={category._id}
-                              value={category._id}
+                              key={
+                                category._id ||
+                                category.id
+                              }
+                              value={
+                                category._id ||
+                                category.id
+                              }
                             >
-                              {category.name}
+                              {
+                                category.name
+                              }
                             </option>
                           )
                         )}
@@ -1059,22 +1356,41 @@ const Products = () => {
 
                       <FaChevronDown />
                     </div>
+
+                    {!categoriesLoading &&
+                      categories.length ===
+                        0 && (
+                        <small className="category-help">
+                          Create an active category
+                          before adding a product.
+                        </small>
+                      )}
                   </div>
 
                   <div className="form-field full">
-                    <label>Description</label>
+                    <label>
+                      Description
+                    </label>
 
                     <textarea
                       name="description"
-                      value={form.description}
-                      onChange={handleChange}
+                      value={
+                        form.description
+                      }
+                      onChange={
+                        handleChange
+                      }
                       placeholder="Describe the product..."
                       maxLength={1000}
                       rows={3}
                     />
 
                     <small>
-                      {form.description.length}/1000
+                      {
+                        form.description
+                          .length
+                      }
+                      /1000
                     </small>
                   </div>
 
@@ -1089,8 +1405,12 @@ const Products = () => {
                       <input
                         type="url"
                         name="image"
-                        value={form.image}
-                        onChange={handleChange}
+                        value={
+                          form.image
+                        }
+                        onChange={
+                          handleChange
+                        }
                         placeholder="https://example.com/product.jpg"
                       />
                     </div>
@@ -1098,10 +1418,16 @@ const Products = () => {
                 </div>
               </div>
 
+              {/* PRICING */}
+
               <div className="form-section">
                 <div className="form-section-title">
                   <FaMoneyBillWave />
-                  <span>Pricing & Inventory Settings</span>
+
+                  <span>
+                    Pricing & Inventory
+                    Settings
+                  </span>
                 </div>
 
                 <div className="form-grid">
@@ -1117,8 +1443,12 @@ const Products = () => {
                       <input
                         type="number"
                         name="price"
-                        value={form.price}
-                        onChange={handleChange}
+                        value={
+                          form.price
+                        }
+                        onChange={
+                          handleChange
+                        }
                         min="0"
                         step="0.01"
                         placeholder="0.00"
@@ -1128,7 +1458,9 @@ const Products = () => {
                   </div>
 
                   <div className="form-field">
-                    <label>Cost Price</label>
+                    <label>
+                      Cost Price
+                    </label>
 
                     <div className="input-with-icon currency">
                       <FaMoneyBillWave />
@@ -1136,8 +1468,12 @@ const Products = () => {
                       <input
                         type="number"
                         name="costPrice"
-                        value={form.costPrice}
-                        onChange={handleChange}
+                        value={
+                          form.costPrice
+                        }
+                        onChange={
+                          handleChange
+                        }
                         min="0"
                         step="0.01"
                         placeholder="0.00"
@@ -1146,39 +1482,60 @@ const Products = () => {
                   </div>
 
                   <div className="form-field">
-                    <label>Tax Rate</label>
+                    <label>
+                      Tax Rate
+                    </label>
 
                     <div className="input-with-suffix">
                       <input
                         type="number"
                         name="taxRate"
-                        value={form.taxRate}
-                        onChange={handleChange}
+                        value={
+                          form.taxRate
+                        }
+                        onChange={
+                          handleChange
+                        }
                         min="0"
                         max="100"
                         step="0.01"
                       />
+
                       <span>%</span>
                     </div>
                   </div>
 
                   <div className="form-field">
-                    <label>Unit</label>
+                    <label>
+                      Unit
+                    </label>
 
                     <div className="form-select">
                       <select
                         name="unit"
-                        value={form.unit}
-                        onChange={handleChange}
+                        value={
+                          form.unit
+                        }
+                        onChange={
+                          handleChange
+                        }
                       >
-                        {UNITS.map((unit) => (
-                          <option
-                            key={unit.value}
-                            value={unit.value}
-                          >
-                            {unit.label}
-                          </option>
-                        ))}
+                        {UNITS.map(
+                          (unit) => (
+                            <option
+                              key={
+                                unit.value
+                              }
+                              value={
+                                unit.value
+                              }
+                            >
+                              {
+                                unit.label
+                              }
+                            </option>
+                          )
+                        )}
                       </select>
 
                       <FaChevronDown />
@@ -1196,7 +1553,9 @@ const Products = () => {
                       value={
                         form.lowStockThreshold
                       }
-                      onChange={handleChange}
+                      onChange={
+                        handleChange
+                      }
                       min="0"
                       step="1"
                     />
@@ -1204,10 +1563,15 @@ const Products = () => {
                 </div>
               </div>
 
+              {/* STATUS */}
+
               <div className="form-section">
                 <div className="form-section-title">
                   <FaCheckCircle />
-                  <span>Product Status</span>
+
+                  <span>
+                    Product Status
+                  </span>
                 </div>
 
                 <div className="status-options">
@@ -1221,15 +1585,22 @@ const Products = () => {
                     <input
                       type="checkbox"
                       name="isActive"
-                      checked={form.isActive}
-                      onChange={handleChange}
+                      checked={
+                        form.isActive
+                      }
+                      onChange={
+                        handleChange
+                      }
                     />
 
                     <div>
-                      <strong>Active Product</strong>
+                      <strong>
+                        Active Product
+                      </strong>
+
                       <span>
-                        Product is enabled in the
-                        catalogue.
+                        Product is enabled
+                        in the catalogue.
                       </span>
                     </div>
 
@@ -1250,17 +1621,23 @@ const Products = () => {
                     <input
                       type="checkbox"
                       name="isAvailable"
-                      checked={form.isAvailable}
-                      onChange={handleChange}
+                      checked={
+                        form.isAvailable
+                      }
+                      onChange={
+                        handleChange
+                      }
                     />
 
                     <div>
                       <strong>
                         Available for Sale
                       </strong>
+
                       <span>
-                        Customers can currently
-                        purchase this product.
+                        Customers can
+                        currently purchase
+                        this product.
                       </span>
                     </div>
 
@@ -1273,11 +1650,15 @@ const Products = () => {
                 </div>
               </div>
 
+              {/* FOOTER */}
+
               <div className="product-modal-footer">
                 <button
                   type="button"
                   className="modal-cancel"
-                  onClick={closeModal}
+                  onClick={
+                    closeModal
+                  }
                   disabled={saving}
                 >
                   Cancel
@@ -1286,7 +1667,11 @@ const Products = () => {
                 <button
                   type="submit"
                   className="modal-submit"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    categoriesLoading ||
+                    categories.length === 0
+                  }
                 >
                   {saving ? (
                     <>
