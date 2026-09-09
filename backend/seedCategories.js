@@ -4,6 +4,13 @@ import mongoose from "mongoose";
 import connectDB from "./config/db.js";
 import Category from "./models/Category.js";
 
+import dns from "dns";
+
+dns.setServers([
+  "8.8.8.8",
+  "8.8.4.4",
+]);
+
 const categories = [
   {
     name: "Ice Cream",
