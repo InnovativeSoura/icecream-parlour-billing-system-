@@ -120,7 +120,7 @@ export const createRazorpayOrder = async (
   next
 ) => {
   try {
-    ensureRazorpayConfig();
+    const razorpay = getRazorpayClient();
 
     const { orderId } = req.body;
 
