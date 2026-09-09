@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   FaBoxOpen,
   FaBoxes,
   FaCheckCircle,
   FaChevronDown,
+  FaCircle,
   FaClock,
   FaExclamationTriangle,
   FaEye,
@@ -18,6 +20,7 @@ import {
   FaUndo,
   FaWrench,
 } from "react-icons/fa";
+
 import { toast } from "react-toastify";
 
 import api from "../api/api";
@@ -202,10 +205,9 @@ const Inventory = () => {
           params.lowStock = "true";
         }
 
-        const response = await api.get(
-          "/inventory",
-          { params }
-        );
+        const response = await api.get("/inventory", {
+          params,
+        });
 
         setInventory(
           response.data?.inventory || []
@@ -319,6 +321,7 @@ const Inventory = () => {
 
     setShowAdjustModal(false);
     setSelectedProduct(null);
+
     setAdjustForm({
       type: "restock",
       quantity: "",
@@ -506,10 +509,14 @@ const Inventory = () => {
 
             <div className="inventory-stat-content">
               <span>Total Products</span>
+
               <strong>
                 {statistics.totalProducts}
               </strong>
-              <small>Tracked inventory items</small>
+
+              <small>
+                Tracked inventory items
+              </small>
             </div>
           </div>
 
@@ -520,9 +527,11 @@ const Inventory = () => {
 
             <div className="inventory-stat-content">
               <span>Low Stock</span>
+
               <strong>
                 {statistics.lowStock}
               </strong>
+
               <small>Need attention</small>
             </div>
           </div>
@@ -534,10 +543,14 @@ const Inventory = () => {
 
             <div className="inventory-stat-content">
               <span>Out of Stock</span>
+
               <strong>
                 {statistics.outOfStock}
               </strong>
-              <small>Currently unavailable</small>
+
+              <small>
+                Currently unavailable
+              </small>
             </div>
           </div>
 
@@ -548,9 +561,11 @@ const Inventory = () => {
 
             <div className="inventory-stat-content">
               <span>Healthy Stock</span>
+
               <strong>
                 {statistics.healthyStock}
               </strong>
+
               <small>Above threshold</small>
             </div>
           </div>
@@ -560,6 +575,7 @@ const Inventory = () => {
         <section className="inventory-summary-strip">
           <div className="inventory-summary-item">
             <span>Total Units</span>
+
             <strong>
               {formatNumber(
                 statistics.totalUnits
@@ -571,6 +587,7 @@ const Inventory = () => {
 
           <div className="inventory-summary-item">
             <span>Available Units</span>
+
             <strong>
               {formatNumber(
                 statistics.totalAvailable
@@ -582,6 +599,7 @@ const Inventory = () => {
 
           <div className="inventory-summary-item">
             <span>Reserved Units</span>
+
             <strong>
               {formatNumber(
                 statistics.totalReserved
@@ -593,6 +611,7 @@ const Inventory = () => {
 
           <div className="inventory-summary-item">
             <span>Health Rate</span>
+
             <strong>
               {statistics.totalProducts
                 ? `${Math.round(
@@ -643,12 +662,15 @@ const Inventory = () => {
               <option value="all">
                 All Stock
               </option>
+
               <option value="healthy">
                 Healthy
               </option>
+
               <option value="low">
                 Low Stock
               </option>
+
               <option value="out">
                 Out of Stock
               </option>
@@ -661,6 +683,7 @@ const Inventory = () => {
             <strong>
               {filteredInventory.length}
             </strong>
+
             <span>
               {filteredInventory.length === 1
                 ? "product"
@@ -674,6 +697,7 @@ const Inventory = () => {
           <div className="inventory-table-header">
             <div>
               <h2>Stock Overview</h2>
+
               <p>
                 Current inventory position across all
                 products
@@ -690,7 +714,9 @@ const Inventory = () => {
           {loading ? (
             <div className="inventory-state">
               <FaSpinner className="inventory-spinner" />
+
               <h3>Loading inventory</h3>
+
               <p>
                 Fetching the latest stock information...
               </p>
@@ -726,170 +752,166 @@ const Inventory = () => {
                 </thead>
 
                 <tbody>
-                  {filteredInventory.map(
-                    (item) => {
-                      const product =
-                        item.product || {};
+                  {filteredInventory.map((item) => {
+                    const product =
+                      item.product || {};
 
-                      const status =
-                        getStockStatus(item);
+                    const status =
+                      getStockStatus(item);
 
-                      return (
-                        <tr
-                          key={
-                            product._id ||
-                            item._id
-                          }
-                        >
-                          <td>
-                            <div className="inventory-product">
-                              <div className="inventory-product-image">
-                                {product.image ? (
-                                  <img
-                                    src={
-                                      product.image
-                                    }
-                                    alt={
-                                      product.name ||
-                                      "Product"
-                                    }
-                                  />
-                                ) : (
-                                  <FaBoxOpen />
-                                )}
-                              </div>
-
-                              <div className="inventory-product-info">
-                                <strong>
-                                  {product.name ||
-                                    "Unnamed Product"}
-                                </strong>
-
-                                <span>
-                                  SKU:{" "}
-                                  {product.sku ||
-                                    "—"}
-                                </span>
-                              </div>
+                    return (
+                      <tr
+                        key={
+                          product._id ||
+                          item._id
+                        }
+                      >
+                        <td>
+                          <div className="inventory-product">
+                            <div className="inventory-product-image">
+                              {product.image ? (
+                                <img
+                                  src={product.image}
+                                  alt={
+                                    product.name ||
+                                    "Product"
+                                  }
+                                />
+                              ) : (
+                                <FaBoxOpen />
+                              )}
                             </div>
-                          </td>
 
-                          <td>
-                            <span className="inventory-category">
-                              {product.category
-                                ?.name ||
-                                "Uncategorized"}
-                            </span>
-                          </td>
-
-                          <td>
-                            <div className="inventory-stock-value">
+                            <div className="inventory-product-info">
                               <strong>
-                                {formatNumber(
-                                  item.currentStock
-                                )}
+                                {product.name ||
+                                  "Unnamed Product"}
                               </strong>
 
                               <span>
-                                {item.unit ||
-                                  product.unit ||
-                                  "piece"}
+                                SKU:{" "}
+                                {product.sku ||
+                                  "—"}
                               </span>
                             </div>
-                          </td>
+                          </div>
+                        </td>
 
-                          <td>
-                            <div className="inventory-available">
-                              <strong>
-                                {formatNumber(
-                                  item.availableStock
-                                )}
-                              </strong>
+                        <td>
+                          <span className="inventory-category">
+                            {product.category
+                              ?.name ||
+                              "Uncategorized"}
+                          </span>
+                        </td>
 
-                              {Number(
-                                item.reservedStock ||
-                                  0
-                              ) > 0 && (
-                                <span>
-                                  {formatNumber(
-                                    item.reservedStock
-                                  )}{" "}
-                                  reserved
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          <td>
-                            <span className="inventory-threshold">
+                        <td>
+                          <div className="inventory-stock-value">
+                            <strong>
                               {formatNumber(
-                                item.lowStockThreshold
+                                item.currentStock
+                              )}
+                            </strong>
+
+                            <span>
+                              {item.unit ||
+                                product.unit ||
+                                "piece"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <div className="inventory-available">
+                            <strong>
+                              {formatNumber(
+                                item.availableStock
+                              )}
+                            </strong>
+
+                            {Number(
+                              item.reservedStock ||
+                                0
+                            ) > 0 && (
+                              <span>
+                                {formatNumber(
+                                  item.reservedStock
+                                )}{" "}
+                                reserved
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td>
+                          <span className="inventory-threshold">
+                            {formatNumber(
+                              item.lowStockThreshold
+                            )}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`inventory-status ${status.className}`}
+                          >
+                            <FaCircle />
+                            {status.label}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="inventory-date">
+                            <span>
+                              {formatDate(
+                                item.lastRestockedAt
                               )}
                             </span>
-                          </td>
 
-                          <td>
-                            <span
-                              className={`inventory-status ${status.className}`}
+                            <small>
+                              {item.lastStockUpdateAt
+                                ? `Updated ${formatDate(
+                                    item.lastStockUpdateAt
+                                  )}`
+                                : "No updates yet"}
+                            </small>
+                          </div>
+                        </td>
+
+                        <td>
+                          <div className="inventory-actions">
+                            <button
+                              type="button"
+                              className="inventory-action-btn inventory-history-btn"
+                              onClick={() =>
+                                openMovementsModal(
+                                  item
+                                )
+                              }
+                              title="View stock history"
                             >
-                              <FaCircle />
-                              {status.label}
-                            </span>
-                          </td>
+                              <FaHistory />
+                            </button>
 
-                          <td>
-                            <div className="inventory-date">
-                              <span>
-                                {formatDate(
-                                  item.lastRestockedAt
-                                )}
-                              </span>
-
-                              <small>
-                                {item.lastStockUpdateAt
-                                  ? `Updated ${formatDate(
-                                      item.lastStockUpdateAt
-                                    )}`
-                                  : "No updates yet"}
-                              </small>
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="inventory-actions">
+                            {isAdmin && (
                               <button
                                 type="button"
-                                className="inventory-action-btn inventory-history-btn"
+                                className="inventory-action-btn inventory-adjust-btn"
                                 onClick={() =>
-                                  openMovementsModal(
+                                  openAdjustModal(
                                     item
                                   )
                                 }
-                                title="View stock history"
+                                title="Adjust stock"
                               >
-                                <FaHistory />
+                                <FaWrench />
                               </button>
-
-                              {isAdmin && (
-                                <button
-                                  type="button"
-                                  className="inventory-action-btn inventory-adjust-btn"
-                                  onClick={() =>
-                                    openAdjustModal(
-                                      item
-                                    )
-                                  }
-                                  title="Adjust stock"
-                                >
-                                  <FaWrench />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )}
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -910,9 +932,10 @@ const Inventory = () => {
                 return (
                   <article
                     className="inventory-mobile-card"
-                    key={
-                      `mobile-${product._id || item._id}`
-                    }
+                    key={`mobile-${
+                      product._id ||
+                      item._id
+                    }`}
                   >
                     <div className="inventory-mobile-top">
                       <div className="inventory-product">
@@ -935,9 +958,11 @@ const Inventory = () => {
                             {product.name ||
                               "Unnamed Product"}
                           </strong>
+
                           <span>
                             SKU:{" "}
-                            {product.sku || "—"}
+                            {product.sku ||
+                              "—"}
                           </span>
                         </div>
                       </div>
@@ -953,6 +978,7 @@ const Inventory = () => {
                     <div className="inventory-mobile-metrics">
                       <div>
                         <span>Current</span>
+
                         <strong>
                           {formatNumber(
                             item.currentStock
@@ -962,6 +988,7 @@ const Inventory = () => {
 
                       <div>
                         <span>Available</span>
+
                         <strong>
                           {formatNumber(
                             item.availableStock
@@ -971,6 +998,7 @@ const Inventory = () => {
 
                       <div>
                         <span>Threshold</span>
+
                         <strong>
                           {formatNumber(
                             item.lowStockThreshold
@@ -983,7 +1011,9 @@ const Inventory = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          openMovementsModal(item)
+                          openMovementsModal(
+                            item
+                          )
                         }
                       >
                         <FaHistory />
@@ -994,7 +1024,9 @@ const Inventory = () => {
                         <button
                           type="button"
                           onClick={() =>
-                            openAdjustModal(item)
+                            openAdjustModal(
+                              item
+                            )
                           }
                         >
                           <FaWrench />
@@ -1036,7 +1068,10 @@ const Inventory = () => {
                   <h2>Adjust Stock</h2>
 
                   <p>
-                    {selectedProduct.product?.name}
+                    {
+                      selectedProduct.product
+                        ?.name
+                    }
                   </p>
                 </div>
 
@@ -1053,6 +1088,7 @@ const Inventory = () => {
               <div className="inventory-current-stock">
                 <div>
                   <span>Current Stock</span>
+
                   <strong>
                     {formatNumber(
                       selectedProduct.currentStock
@@ -1062,6 +1098,7 @@ const Inventory = () => {
 
                 <div>
                   <span>Available</span>
+
                   <strong>
                     {formatNumber(
                       selectedProduct.availableStock
@@ -1071,6 +1108,7 @@ const Inventory = () => {
 
                 <div>
                   <span>Unit</span>
+
                   <strong>
                     {selectedProduct.unit ||
                       "piece"}
@@ -1120,7 +1158,9 @@ const Inventory = () => {
                             </span>
 
                             <small>
-                              {movement.description}
+                              {
+                                movement.description
+                              }
                             </small>
                           </button>
                         );
@@ -1192,7 +1232,8 @@ const Inventory = () => {
                   />
 
                   <div className="inventory-character-count">
-                    {adjustForm.reason.length}/500
+                    {adjustForm.reason.length}
+                    /500
                   </div>
                 </div>
 
@@ -1256,7 +1297,10 @@ const Inventory = () => {
                   <h2>Stock History</h2>
 
                   <p>
-                    {selectedProduct.product?.name}
+                    {
+                      selectedProduct.product
+                        ?.name
+                    }
                   </p>
                 </div>
 
@@ -1275,6 +1319,7 @@ const Inventory = () => {
               <div className="inventory-history-summary">
                 <div>
                   <span>Current Stock</span>
+
                   <strong>
                     {formatNumber(
                       selectedProduct.currentStock
@@ -1284,6 +1329,7 @@ const Inventory = () => {
 
                 <div>
                   <span>Available</span>
+
                   <strong>
                     {formatNumber(
                       selectedProduct.availableStock
@@ -1293,6 +1339,7 @@ const Inventory = () => {
 
                 <div>
                   <span>Movements</span>
+
                   <strong>
                     {movements.length}
                   </strong>
@@ -1302,6 +1349,7 @@ const Inventory = () => {
               {movementsLoading ? (
                 <div className="inventory-history-state">
                   <FaSpinner className="inventory-spinner" />
+
                   <p>
                     Loading stock history...
                   </p>
@@ -1309,7 +1357,9 @@ const Inventory = () => {
               ) : movements.length === 0 ? (
                 <div className="inventory-history-state">
                   <FaHistory />
+
                   <h3>No movements yet</h3>
+
                   <p>
                     Stock activity for this product
                     will appear here.
@@ -1334,9 +1384,7 @@ const Inventory = () => {
                       return (
                         <div
                           className="inventory-history-item"
-                          key={
-                            movement._id
-                          }
+                          key={movement._id}
                         >
                           <div
                             className={`inventory-history-icon ${
@@ -1399,6 +1447,7 @@ const Inventory = () => {
                             <div className="inventory-history-meta">
                               <span>
                                 <FaClock />
+
                                 {formatDateTime(
                                   movement.createdAt
                                 )}
@@ -1407,6 +1456,7 @@ const Inventory = () => {
                               {movement.createdBy && (
                                 <span>
                                   <FaEye />
+
                                   {movement
                                     .createdBy
                                     .name ||
