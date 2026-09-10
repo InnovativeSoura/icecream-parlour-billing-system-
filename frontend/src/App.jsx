@@ -1,3 +1,5 @@
+// frontend/src/App.jsx
+
 import {
   Navigate,
   Route,
@@ -33,7 +35,7 @@ import CustomerInvoices from "./pages/customer/Invoices";
 import CustomerProfile from "./pages/customer/Profile";
 
 // =====================================================
-// ADMIN / STAFF
+// ADMIN / STAFF PAGES
 // =====================================================
 
 import Products from "./pages/Products.jsx";
@@ -54,6 +56,10 @@ import { useAuth } from "./context/AuthContext";
 const HomeRedirect = () => {
   const { user, loading } = useAuth();
 
+  // ---------------------------------------------------
+  // AUTH LOADING
+  // ---------------------------------------------------
+
   if (loading) {
     return (
       <div
@@ -61,13 +67,24 @@ const HomeRedirect = () => {
           minHeight: "100vh",
           display: "grid",
           placeItems: "center",
-          fontFamily: "Arial, sans-serif",
+          background:
+            "linear-gradient(135deg, #f8f7ff, #ffffff)",
+          color: "#5f4bd8",
+          fontFamily:
+            "Inter, -apple-system, BlinkMacSystemFont, " +
+            '"Segoe UI", sans-serif',
+          fontSize: "14px",
+          fontWeight: 700,
         }}
       >
         Loading...
       </div>
     );
   }
+
+  // ---------------------------------------------------
+  // NOT LOGGED IN
+  // ---------------------------------------------------
 
   if (!user) {
     return (
@@ -78,6 +95,10 @@ const HomeRedirect = () => {
     );
   }
 
+  // ---------------------------------------------------
+  // ADMIN
+  // ---------------------------------------------------
+
   if (user.role === "admin") {
     return (
       <Navigate
@@ -86,6 +107,10 @@ const HomeRedirect = () => {
       />
     );
   }
+
+  // ---------------------------------------------------
+  // STAFF
+  // ---------------------------------------------------
 
   if (user.role === "staff") {
     return (
@@ -96,6 +121,10 @@ const HomeRedirect = () => {
     );
   }
 
+  // ---------------------------------------------------
+  // CUSTOMER
+  // ---------------------------------------------------
+
   if (user.role === "customer") {
     return (
       <Navigate
@@ -104,6 +133,10 @@ const HomeRedirect = () => {
       />
     );
   }
+
+  // ---------------------------------------------------
+  // UNKNOWN ROLE
+  // ---------------------------------------------------
 
   return (
     <Navigate
@@ -123,7 +156,7 @@ const App = () => {
       <Routes>
 
         {/* =================================================
-            PUBLIC
+            PUBLIC ROUTES
         ================================================= */}
 
         <Route
@@ -141,8 +174,9 @@ const App = () => {
           element={<Register />}
         />
 
+
         {/* =================================================
-            ADMIN
+            ADMIN ROUTES
         ================================================= */}
 
         <Route
@@ -152,6 +186,9 @@ const App = () => {
             />
           }
         >
+
+          {/* Admin root */}
+
           <Route
             path="/admin"
             element={
@@ -162,14 +199,18 @@ const App = () => {
             }
           />
 
+          {/* Admin Dashboard */}
+
           <Route
             path="/admin/dashboard"
             element={<AdminDashboard />}
           />
+
         </Route>
 
+
         {/* =================================================
-            STAFF
+            STAFF ROUTES
         ================================================= */}
 
         <Route
@@ -179,6 +220,9 @@ const App = () => {
             />
           }
         >
+
+          {/* Staff root */}
+
           <Route
             path="/staff"
             element={
@@ -189,14 +233,20 @@ const App = () => {
             }
           />
 
+          {/* Staff Dashboard */}
+
           <Route
             path="/staff/dashboard"
             element={<StaffDashboard />}
           />
+
         </Route>
 
+
         {/* =================================================
-            CUSTOMER
+            CUSTOMER ROUTES
+            CustomerLayout is handled inside each
+            customer page/component.
         ================================================= */}
 
         <Route
@@ -206,7 +256,11 @@ const App = () => {
             />
           }
         >
-          {/* Customer root */}
+
+          {/* -------------------------------------------------
+              CUSTOMER ROOT
+          ------------------------------------------------- */}
+
           <Route
             path="/customer"
             element={
@@ -217,42 +271,68 @@ const App = () => {
             }
           />
 
-          {/* Dashboard */}
+
+          {/* -------------------------------------------------
+              CUSTOMER DASHBOARD
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/dashboard"
             element={<CustomerDashboard />}
           />
 
-          {/* Browse Products */}
+
+          {/* -------------------------------------------------
+              BROWSE PRODUCTS
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/products"
             element={<CustomerProducts />}
           />
 
-          {/* My Orders */}
+
+          {/* -------------------------------------------------
+              MY ORDERS
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/orders"
             element={<CustomerOrders />}
           />
 
-          {/* My Cart */}
+
+          {/* -------------------------------------------------
+              MY CART
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/cart"
             element={<CustomerCart />}
           />
 
-          {/* Invoices */}
+
+          {/* -------------------------------------------------
+              INVOICES
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/invoices"
             element={<CustomerInvoices />}
           />
 
-          {/* My Profile */}
+
+          {/* -------------------------------------------------
+              MY PROFILE
+          ------------------------------------------------- */}
+
           <Route
             path="/customer/profile"
             element={<CustomerProfile />}
           />
+
         </Route>
+
 
         {/* =================================================
             PRODUCTS
@@ -266,11 +346,14 @@ const App = () => {
             />
           }
         >
+
           <Route
             path="/products"
             element={<Products />}
           />
+
         </Route>
+
 
         {/* =================================================
             INVENTORY
@@ -284,11 +367,14 @@ const App = () => {
             />
           }
         >
+
           <Route
             path="/inventory"
             element={<Inventory />}
           />
+
         </Route>
+
 
         {/* =================================================
             CUSTOMERS
@@ -302,11 +388,14 @@ const App = () => {
             />
           }
         >
+
           <Route
             path="/customers"
             element={<Customer />}
           />
+
         </Route>
+
 
         {/* =================================================
             FALLBACK
@@ -319,14 +408,18 @@ const App = () => {
 
       </Routes>
 
+
       {/* =================================================
-          TOAST
+          TOAST NOTIFICATIONS
       ================================================= */}
 
       <ToastContainer
         position="top-right"
         autoClose={3000}
         newestOnTop
+        closeOnClick
+        pauseOnHover
+        draggable
       />
     </>
   );

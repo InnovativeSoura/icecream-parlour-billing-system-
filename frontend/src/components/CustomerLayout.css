@@ -1,0 +1,640 @@
+/* =========================================================
+   CUSTOMER LAYOUT
+========================================================= */
+
+.customer-layout {
+  min-height: 100vh;
+  width: 100%;
+
+  display: flex;
+
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      rgba(185, 129, 255, 0.11),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 12% 78%,
+      rgba(122, 157, 255, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      135deg,
+      #f8f9ff 0%,
+      #f5f6fb 45%,
+      #fbf9ff 100%
+    );
+
+  color: #20243a;
+}
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.customer-sidebar {
+  width: 224px;
+  min-width: 224px;
+  height: 100vh;
+
+  position: fixed;
+  left: 0;
+  top: 0;
+
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+
+  background: rgba(255, 255, 255, 0.94);
+
+  border-right: 1px solid rgba(101, 89, 140, 0.08);
+
+  box-shadow:
+    8px 0 35px rgba(45, 40, 90, 0.035);
+
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   BRAND
+========================================================= */
+
+.customer-brand {
+  height: 104px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 20px;
+
+  border-bottom: 1px solid rgba(80, 72, 120, 0.055);
+
+  position: relative;
+}
+
+.customer-brand-icon {
+  width: 42px;
+  height: 42px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  color: #ffffff;
+  font-size: 19px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #8b5cf6,
+      #b35edc
+    );
+
+  box-shadow:
+    0 9px 22px rgba(139, 92, 246, 0.27);
+}
+
+.customer-brand-text {
+  margin-left: 11px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-brand-text h2 {
+  margin: 0;
+
+  color: #20243a;
+
+  font-size: 15px;
+  font-weight: 800;
+
+  line-height: 1.1;
+}
+
+.customer-brand-text span {
+  margin-top: 3px;
+
+  color: #aaa9bd;
+
+  font-size: 7px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+/* =========================================================
+   SIDEBAR PROFILE
+========================================================= */
+
+.customer-sidebar-profile {
+  margin: 17px 13px 11px;
+  padding: 11px;
+
+  display: flex;
+  align-items: center;
+
+  border-radius: 13px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(246, 242, 255, 0.96),
+      rgba(250, 248, 255, 0.8)
+    );
+
+  border: 1px solid rgba(139, 92, 246, 0.07);
+}
+
+.customer-sidebar-avatar {
+  width: 35px;
+  height: 35px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  color: #7653e9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #eee8ff,
+      #e4ddff
+    );
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.customer-sidebar-profile-info {
+  min-width: 0;
+
+  margin-left: 9px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-sidebar-profile-info strong {
+  overflow: hidden;
+
+  color: #34364a;
+
+  font-size: 10px;
+  font-weight: 750;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.customer-sidebar-profile-info span {
+  margin-top: 3px;
+
+  color: #a7a5b7;
+
+  font-size: 8px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   MENU
+========================================================= */
+
+.customer-navigation {
+  padding: 7px 12px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.customer-nav-item {
+  min-height: 38px;
+
+  padding: 0 12px;
+
+  display: flex;
+  align-items: center;
+
+  position: relative;
+
+  border-radius: 10px;
+
+  color: #77798d;
+
+  text-decoration: none;
+
+  font-size: 9.5px;
+  font-weight: 600;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.customer-nav-item svg {
+  width: 13px;
+  height: 13px;
+
+  margin-right: 11px;
+
+  flex-shrink: 0;
+
+  opacity: 0.82;
+
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.customer-nav-item:hover {
+  color: #7451e7;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(139, 92, 246, 0.07),
+      rgba(194, 115, 215, 0.04)
+    );
+
+  transform: translateX(2px);
+}
+
+.customer-nav-item:hover svg {
+  color: #8058ed;
+  transform: scale(1.08);
+}
+
+.customer-nav-item.active {
+  color: #754fe5;
+
+  background:
+    linear-gradient(
+      100deg,
+      rgba(139, 92, 246, 0.12),
+      rgba(207, 114, 210, 0.07)
+    );
+
+  box-shadow:
+    inset 3px 0 0 #8057ef;
+}
+
+.customer-nav-item.active svg {
+  color: #8057ef;
+  opacity: 1;
+}
+
+/* =========================================================
+   SIDEBAR FOOTER
+========================================================= */
+
+.customer-sidebar-bottom {
+  margin-top: auto;
+
+  padding: 15px 13px 21px;
+}
+
+.customer-logout {
+  width: 100%;
+  min-height: 38px;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 12px;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: #858597;
+
+  font-family: inherit;
+
+  font-size: 9.5px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.customer-logout svg {
+  width: 13px;
+  height: 13px;
+
+  margin-right: 11px;
+}
+
+.customer-logout:hover {
+  color: #e05278;
+
+  background: rgba(232, 87, 122, 0.07);
+
+  transform: translateX(2px);
+}
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.customer-main {
+  width: calc(100% - 224px);
+  min-height: 100vh;
+
+  margin-left: 224px;
+
+  display: flex;
+  flex-direction: column;
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   TOPBAR
+========================================================= */
+
+.customer-topbar {
+  height: 67px;
+  min-height: 67px;
+
+  padding: 0 25px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  position: sticky;
+  top: 0;
+
+  z-index: 900;
+
+  background: rgba(255, 255, 255, 0.76);
+
+  border-bottom: 1px solid rgba(82, 76, 120, 0.06);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-sizing: border-box;
+}
+
+.customer-topbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.customer-mobile-brand {
+  display: none;
+  align-items: center;
+}
+
+.customer-mobile-brand .customer-brand-icon {
+  width: 34px;
+  height: 34px;
+
+  border-radius: 10px;
+
+  font-size: 15px;
+}
+
+.customer-mobile-brand > div:last-child {
+  margin-left: 9px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-mobile-brand strong {
+  color: #27293e;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.customer-mobile-brand span {
+  margin-top: 1px;
+
+  color: #aaa8ba;
+
+  font-size: 7px;
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+}
+
+/* =========================================================
+   TOPBAR PROFILE
+========================================================= */
+
+.customer-topbar-profile {
+  display: flex;
+  align-items: center;
+}
+
+.customer-avatar {
+  width: 31px;
+  height: 31px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  color: #7959e9;
+
+  background:
+    linear-gradient(
+      135deg,
+      #eee8ff,
+      #e3dcff
+    );
+
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.customer-profile-info {
+  margin-left: 9px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-profile-info strong {
+  color: #34364b;
+
+  font-size: 9.5px;
+  font-weight: 750;
+}
+
+.customer-profile-info span {
+  margin-top: 2px;
+
+  color: #aaa8b8;
+
+  font-size: 7.5px;
+  font-weight: 600;
+}
+
+/* =========================================================
+   PAGE CONTENT
+========================================================= */
+
+.customer-content {
+  flex: 1;
+
+  width: 100%;
+
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   MOBILE BUTTONS
+========================================================= */
+
+.customer-mobile-menu,
+.customer-mobile-close {
+  display: none;
+
+  border: 0;
+
+  cursor: pointer;
+
+  font-family: inherit;
+}
+
+.customer-mobile-menu {
+  width: 34px;
+  height: 34px;
+
+  margin-right: 9px;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  color: #7350e6;
+
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.customer-mobile-close {
+  width: 30px;
+  height: 30px;
+
+  margin-left: auto;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  color: #77768b;
+
+  background: rgba(100, 90, 140, 0.06);
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .customer-sidebar {
+    transform: translateX(-105%);
+
+    transition:
+      transform 0.3s ease;
+
+    box-shadow:
+      15px 0 45px rgba(33, 27, 72, 0.14);
+  }
+
+  .customer-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .customer-sidebar-overlay {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 950;
+
+    border: 0;
+
+    background: rgba(29, 25, 55, 0.28);
+
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
+  .customer-mobile-close {
+    display: flex;
+  }
+
+  .customer-main {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .customer-mobile-menu {
+    display: flex;
+  }
+
+  .customer-mobile-brand {
+    display: flex;
+  }
+
+  .customer-topbar {
+    padding: 0 17px;
+  }
+}
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 600px) {
+
+  .customer-sidebar {
+    width: 260px;
+  }
+
+  .customer-topbar {
+    height: 61px;
+    min-height: 61px;
+  }
+
+  .customer-profile-info {
+    display: none;
+  }
+
+  .customer-content {
+    overflow-x: hidden;
+  }
+}
