@@ -21,7 +21,16 @@ import Register from "./pages/Register";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
+
+// =====================================================
+// CUSTOMER PAGES
+// =====================================================
+
 import CustomerProducts from "./pages/CustomerProducts";
+import CustomerOrders from "./pages/customer/MyOrders";
+import CustomerCart from "./pages/customer/MyCart";
+import CustomerInvoices from "./pages/customer/Invoices";
+import CustomerProfile from "./pages/customer/Profile";
 
 // =====================================================
 // ADMIN / STAFF
@@ -37,94 +46,6 @@ import Customer from "./pages/Customers.jsx";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
-
-// =====================================================
-// CUSTOMER PLACEHOLDER
-// =====================================================
-
-const CustomerPagePlaceholder = ({ title, description }) => {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "30px",
-        background: "#f7f8fc",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "550px",
-          padding: "45px",
-          textAlign: "center",
-          background: "#ffffff",
-          borderRadius: "24px",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08)",
-        }}
-      >
-        <div
-          style={{
-            width: "64px",
-            height: "64px",
-            margin: "0 auto 20px",
-            display: "grid",
-            placeItems: "center",
-            borderRadius: "18px",
-            background:
-              "linear-gradient(135deg, #7657e8, #d16d9b)",
-            color: "#ffffff",
-            fontSize: "26px",
-            fontWeight: "800",
-          }}
-        >
-          🍦
-        </div>
-
-        <h1
-          style={{
-            margin: "0 0 12px",
-            color: "#292c3d",
-            fontSize: "26px",
-          }}
-        >
-          {title}
-        </h1>
-
-        <p
-          style={{
-            margin: "0 0 25px",
-            color: "#8d91a5",
-            fontSize: "14px",
-            lineHeight: "1.7",
-          }}
-        >
-          {description}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => {
-            window.location.href = "/customer/dashboard";
-          }}
-          style={{
-            border: "none",
-            padding: "12px 20px",
-            borderRadius: "12px",
-            background: "#7657e8",
-            color: "#ffffff",
-            fontWeight: "700",
-            cursor: "pointer",
-          }}
-        >
-          Back to Dashboard
-        </button>
-      </div>
-    </div>
-  );
-};
 
 // =====================================================
 // HOME REDIRECT
@@ -301,65 +222,35 @@ const App = () => {
             path="/customer/dashboard"
             element={<CustomerDashboard />}
           />
-          
+
+          {/* Browse Products */}
           <Route
             path="/customer/products"
             element={<CustomerProducts />}
           />
 
-          {/* Browse Products */}
-          <Route
-            path="/customer/products"
-            element={
-              <CustomerPagePlaceholder
-                title="Browse Products"
-                description="Your customer shopping experience will be available here."
-              />
-            }
-          />
-
-          {/* Orders */}
+          {/* My Orders */}
           <Route
             path="/customer/orders"
-            element={
-              <CustomerPagePlaceholder
-                title="My Orders"
-                description="Your orders and order tracking will be available here."
-              />
-            }
+            element={<CustomerOrders />}
           />
 
-          {/* Cart */}
+          {/* My Cart */}
           <Route
             path="/customer/cart"
-            element={
-              <CustomerPagePlaceholder
-                title="My Cart"
-                description="Your shopping cart and checkout experience will be available here."
-              />
-            }
+            element={<CustomerCart />}
           />
 
           {/* Invoices */}
           <Route
             path="/customer/invoices"
-            element={
-              <CustomerPagePlaceholder
-                title="Invoices"
-                description="Your invoices and payment receipts will be available here."
-              />
-            }
+            element={<CustomerInvoices />}
           />
 
-          {/* Profile */}
+          {/* My Profile */}
           <Route
             path="/customer/profile"
-            element={
-              <CustomerPagePlaceholder
-                title="My Profile"
-                description="Your customer profile and account settings will be available here."
-              />
-            }
+            element={<CustomerProfile />}
           />
         </Route>
 

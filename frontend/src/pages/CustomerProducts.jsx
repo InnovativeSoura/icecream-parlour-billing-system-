@@ -1,28 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-toastify";
+
 import {
-  FaArrowLeft,
-  FaArrowRight,
-  FaBoxOpen,
-  FaCartPlus,
-  FaCheck,
-  FaChevronDown,
-  FaIceCream,
-  FaReceipt,
   FaSearch,
-  FaShoppingBag,
-  FaSignOutAlt,
-  FaSpinner,
+  FaShoppingCart,
+  FaPlus,
+  FaMinus,
+  FaIceCream,
+  FaFilter,
   FaTimes,
-  FaUserCircle,
+  FaArrowRight,
+  FaSpinner,
+  FaExclamationCircle,
+  FaCheck,
 } from "react-icons/fa";
 
-import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import api from "../api/api";
+
 import "./CustomerProducts.css";
 
+const CART_STORAGE_KEY = "icecream_customer_cart";
+
 const CustomerProducts = () => {
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -30,57 +32,72 @@ const CustomerProducts = () => {
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(true);
 
+  const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedCategory, setSelectedCategory] =
+    useState("all");
 
   const [cart, setCart] = useState(() => {
     try {
-      const savedCart = localStorage.getItem("customerCart");
-      return savedCart ? JSON.parse(savedCart) : [];
+      const savedCart =
+        localStorage.getItem(CART_STORAGE_KEY);
+
+      return savedCart
+        ? JSON.parse(savedCart)
+        : [];
     } catch {
       return [];
     }
   });
 
-  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
-  const [addedProduct, setAddedProduct] = useState(null);
+  /*
+   * ============================================================
+   * FETCH PRODUCTS
+   * ============================================================
+   */
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
   }, []);
 
+  /*
+   * Persist cart
+   */
+
   useEffect(() => {
-    localStorage.setItem("customerCart", JSON.stringify(cart));
+    localStorage.setItem(
+      CART_STORAGE_KEY,
+      JSON.stringify(cart)
+    );
   }, [cart]);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setError("");
 
-      const response = await api.get("/products/available");
+      const response =
+        await api.get("/products/available");
 
       const data = response?.data;
 
-      if (Array.isArray(data)) {
-        setProducts(data);
-      } else if (Array.isArray(data?.products)) {
-        setProducts(data.products);
-      } else {
-        setProducts([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch customer products:", error);
+      setProducts(
+        Array.isArray(data?.products)
+          ? data.products
+          : []
+      );
+    } catch (err) {
+      console.error(
+        "Customer products error:",
+        err
+      );
 
-      if (error?.response) {
-        console.error(
-          "Customer products API error:",
-          error.response.status,
-          error.response.data,
-        );
-      }
-
-      setProducts([]);
+      setError(
+        err?.response?.data?.message ||
+          "Unable to load products"
+      );
     } finally {
       setLoading(false);
     }
@@ -90,530 +107,835 @@ const CustomerProducts = () => {
     try {
       setCategoryLoading(true);
 
-      const response = await api.get("/categories/active");
+      const response =
+        await api.get("/categories/active");
 
       const data = response?.data;
 
-      if (Array.isArray(data)) {
-        setCategories(data);
-      } else if (Array.isArray(data?.categories)) {
-        setCategories(data.categories);
-      } else {
-        setCategories([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch categories:", error);
+      setCategories(
+        Array.isArray(data?.categories)
+          ? data.categories
+          : []
+      );
+    } catch (err) {
+      console.error(
+        "Customer categories error:",
+        err
+      );
+
       setCategories([]);
     } finally {
       setCategoryLoading(false);
     }
   };
 
+  /*
+   * ============================================================
+   * FILTER PRODUCTS
+   * ============================================================
+   */
+
   const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const normalizedSearch =
+      search.trim().toLowerCase();
 
     return products.filter((product) => {
-      const productCategory =
-        typeof product.category === "object"
-          ? product.category?._id || product.category?.name
-          : product.category;
-
-      const categoryName =
-        typeof product.category === "object" ? product.category?.name : "";
-
       const matchesSearch =
-        !query ||
-        product.name?.toLowerCase().includes(query) ||
-        product.sku?.toLowerCase().includes(query) ||
-        product.description?.toLowerCase().includes(query);
+        !normalizedSearch ||
+        product.name
+          ?.toLowerCase()
+          .includes(normalizedSearch) ||
+        product.sku
+          ?.toLowerCase()
+          .includes(normalizedSearch) ||
+        product.description
+          ?.toLowerCase()
+          .includes(normalizedSearch);
+
+      const productCategoryId =
+        typeof product.category === "object"
+          ? product.category?._id
+          : product.category;
 
       const matchesCategory =
         selectedCategory === "all" ||
-        productCategory === selectedCategory ||
-        categoryName === selectedCategory;
+        productCategoryId === selectedCategory;
 
-      return matchesSearch && matchesCategory;
+      return (
+        matchesSearch &&
+        matchesCategory
+      );
     });
-  }, [products, search, selectedCategory]);
+  }, [
+    products,
+    search,
+    selectedCategory,
+  ]);
 
-  const cartCount = useMemo(() => {
-    return cart.reduce((total, item) => total + Number(item.quantity || 0), 0);
-  }, [cart]);
+  /*
+   * ============================================================
+   * CART HELPERS
+   * ============================================================
+   */
 
-  const cartTotal = useMemo(() => {
-    return cart.reduce(
-      (total, item) =>
-        total + Number(item.price || 0) * Number(item.quantity || 0),
-      0,
-    );
-  }, [cart]);
-
-  const getCategoryName = (product) => {
-    if (!product?.category) {
-      return "Ice Cream";
-    }
-
-    if (typeof product.category === "object") {
-      return product.category?.name || "Ice Cream";
-    }
-
-    const foundCategory = categories.find(
-      (category) =>
-        category._id === product.category || category.id === product.category,
+  const getCartQuantity = (productId) => {
+    const item = cart.find(
+      (cartItem) =>
+        cartItem.product === productId
     );
 
-    return foundCategory?.name || product.category;
+    return item?.quantity || 0;
   };
 
   const addToCart = (product) => {
-    if (!product?._id) return;
-
     setCart((previousCart) => {
-      const existing = previousCart.find(
-        (item) => item.productId === product._id,
-      );
+      const existingIndex =
+        previousCart.findIndex(
+          (item) =>
+            item.product === product._id
+        );
 
-      if (existing) {
-        return previousCart.map((item) =>
-          item.productId === product._id
-            ? {
-                ...item,
-                quantity: Number(item.quantity || 0) + 1,
-              }
-            : item,
+      if (existingIndex !== -1) {
+        return previousCart.map(
+          (item, index) =>
+            index === existingIndex
+              ? {
+                  ...item,
+                  quantity:
+                    item.quantity + 1,
+                }
+              : item
         );
       }
 
       return [
         ...previousCart,
         {
-          productId: product._id,
+          product: product._id,
           name: product.name,
-          sku: product.sku || "",
-          price: Number(product.price || 0),
+          sku: product.sku,
           image: product.image || "",
+          price: Number(product.price) || 0,
+          taxRate:
+            Number(product.taxRate) || 0,
+          unit:
+            product.unit || "piece",
           quantity: 1,
         },
       ];
     });
 
-    setAddedProduct(product._id);
-
-    setTimeout(() => {
-      setAddedProduct(null);
-    }, 1300);
+    toast.success(
+      `${product.name} added to cart`,
+      {
+        autoClose: 1600,
+      }
+    );
   };
 
-  const getProductQuantity = (productId) => {
-    const item = cart.find((cartItem) => cartItem.productId === productId);
-    return item?.quantity || 0;
+  const increaseQuantity = (productId) => {
+    setCart((previousCart) =>
+      previousCart.map((item) =>
+        item.product === productId
+          ? {
+              ...item,
+              quantity:
+                item.quantity + 1,
+            }
+          : item
+      )
+    );
   };
 
-  const clearSearch = () => {
+  const decreaseQuantity = (productId) => {
+    setCart((previousCart) =>
+      previousCart
+        .map((item) =>
+          item.product === productId
+            ? {
+                ...item,
+                quantity:
+                  item.quantity - 1,
+              }
+            : item
+        )
+        .filter(
+          (item) => item.quantity > 0
+        )
+    );
+  };
+
+  /*
+   * ============================================================
+   * CART TOTALS
+   * ============================================================
+   */
+
+  const cartCount = useMemo(
+    () =>
+      cart.reduce(
+        (total, item) =>
+          total +
+          Number(item.quantity || 0),
+        0
+      ),
+    [cart]
+  );
+
+  const cartSubtotal = useMemo(
+    () =>
+      cart.reduce(
+        (total, item) =>
+          total +
+          Number(item.price || 0) *
+            Number(item.quantity || 0),
+        0
+      ),
+    [cart]
+  );
+
+  const cartTax = useMemo(
+    () =>
+      cart.reduce(
+        (total, item) => {
+          const lineSubtotal =
+            Number(item.price || 0) *
+            Number(item.quantity || 0);
+
+          const tax =
+            (lineSubtotal *
+              Number(item.taxRate || 0)) /
+            100;
+
+          return total + tax;
+        },
+        0
+      ),
+    [cart]
+  );
+
+  const cartTotal =
+    cartSubtotal + cartTax;
+
+  /*
+   * ============================================================
+   * NAVIGATION
+   * ============================================================
+   */
+
+  const goToCart = () => {
+    navigate("/customer/cart");
+  };
+
+  const clearFilters = () => {
     setSearch("");
+    setSelectedCategory("all");
   };
 
-  const selectedCategoryName =
-    selectedCategory === "all"
-      ? "All Products"
-      : categories.find(
-          (category) =>
-            category._id === selectedCategory ||
-            category.id === selectedCategory,
-        )?.name || selectedCategory;
+  /*
+   * ============================================================
+   * IMAGE FALLBACK
+   * ============================================================
+   */
+
+  const getInitials = (name = "") => {
+    return name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+  };
+
+  /*
+   * ============================================================
+   * RENDER
+   * ============================================================
+   */
 
   return (
     <div className="customer-products-page">
-      {/* SIDEBAR */}
-      <aside className="customer-products-sidebar">
-        <div className="customer-products-brand">
-          <div className="customer-products-brand-icon">
-            <FaIceCream />
-          </div>
+      <div className="customer-products-container">
 
+        {/* =====================================================
+            HEADER
+        ====================================================== */}
+
+        <motion.div
+          className="customer-products-header"
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            duration: 0.45,
+          }}
+        >
           <div>
-            <h2>IceCream</h2>
-            <span>PARLOUR</span>
+            <span className="customer-products-eyebrow">
+              OUR MENU
+            </span>
+
+            <h1>
+              Find your perfect scoop
+            </h1>
+
+            <p>
+              Explore our delicious collection
+              of ice creams, desserts,
+              beverages and more.
+            </p>
           </div>
-        </div>
 
-        <nav className="customer-products-navigation">
-          <a href="/customer/dashboard" className="customer-products-nav-item">
-            <FaBoxOpen />
-            <span>Dashboard</span>
-          </a>
-
-          <a
-            href="/customer/products"
-            className="customer-products-nav-item active"
+          <motion.button
+            className="customer-cart-summary"
+            onClick={goToCart}
+            whileHover={{
+              y: -3,
+            }}
+            whileTap={{
+              scale: 0.97,
+            }}
           >
-            <FaIceCream />
-            <span>Browse Products</span>
-          </a>
-
-          <a href="/customer/orders" className="customer-products-nav-item">
-            <FaShoppingBag />
-            <span>My Orders</span>
-          </a>
-
-          <a href="/customer/cart" className="customer-products-nav-item">
-            <FaCartPlus />
-            <span>My Cart</span>
-
-            {cartCount > 0 && (
-              <b className="customer-products-nav-count">{cartCount}</b>
-            )}
-          </a>
-
-          <a href="/customer/invoices" className="customer-products-nav-item">
-            <FaReceipt />
-            <span>Invoices</span>
-          </a>
-
-          <a href="/customer/profile" className="customer-products-nav-item">
-            <FaUserCircle />
-            <span>My Profile</span>
-          </a>
-        </nav>
-
-        <div className="customer-products-sidebar-bottom">
-          <button
-            type="button"
-            className="customer-products-logout"
-            onClick={logout}
-          >
-            <FaSignOutAlt />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN */}
-      <main className="customer-products-main">
-        {/* TOPBAR */}
-        <header className="customer-products-topbar">
-          <div className="customer-products-mobile-brand">
-            <div className="customer-products-brand-icon">
-              <FaIceCream />
+            <div className="customer-cart-summary-icon">
+              <FaShoppingCart />
             </div>
 
-            <span>IceCream Parlour</span>
-          </div>
-
-          <div className="customer-products-topbar-actions">
-            <button
-              type="button"
-              className="customer-products-cart-button"
-              onClick={() => {
-                window.location.href = "/customer/cart";
-              }}
-            >
-              <FaCartPlus />
-
-              {cartCount > 0 && (
-                <span className="customer-products-cart-badge">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-
-            <div className="customer-products-profile">
-              <div className="customer-products-avatar">
-                {(user?.name || "Customer").charAt(0).toUpperCase()}
-              </div>
-
-              <div>
-                <strong>{user?.name || "Customer"}</strong>
-                <span>Customer</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="customer-products-content">
-          {/* PAGE HEADER */}
-          <motion.div
-            className="customer-products-header"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div>
-              <span className="customer-products-eyebrow">OUR MENU</span>
-
-              <h1>Find your perfect scoop</h1>
-
-              <p>
-                Explore our delicious collection of ice creams, desserts,
-                beverages and more.
-              </p>
-            </div>
-
-            <div className="customer-products-header-cart">
-              <div>
-                <span>{cartCount} items</span>
-                <strong>₹{cartTotal.toFixed(2)}</strong>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = "/customer/cart";
-                }}
-              >
-                View Cart
-                <FaArrowRight />
-              </button>
-            </div>
-          </motion.div>
-
-          {/* SEARCH / FILTER */}
-          <div className="customer-products-toolbar">
-            <div className="customer-products-search">
-              <FaSearch />
-
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search ice creams, desserts..."
-              />
-
-              {search && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  aria-label="Clear search"
-                >
-                  <FaTimes />
-                </button>
-              )}
-            </div>
-
-            <div className="customer-products-filter-wrapper">
-              <button
-                type="button"
-                className="customer-products-category-button"
-                onClick={() => setShowCategoryMenu((previous) => !previous)}
-              >
-                <span>{selectedCategoryName}</span>
-                <FaChevronDown className={showCategoryMenu ? "rotated" : ""} />
-              </button>
-
-              <AnimatePresence>
-                {showCategoryMenu && (
-                  <motion.div
-                    className="customer-products-category-menu"
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                  >
-                    <button
-                      type="button"
-                      className={selectedCategory === "all" ? "selected" : ""}
-                      onClick={() => {
-                        setSelectedCategory("all");
-                        setShowCategoryMenu(false);
-                      }}
-                    >
-                      All Products
-                    </button>
-
-                    {categories.map((category) => {
-                      const categoryId = category._id || category.id;
-
-                      return (
-                        <button
-                          type="button"
-                          key={categoryId}
-                          className={
-                            selectedCategory === categoryId ? "selected" : ""
-                          }
-                          onClick={() => {
-                            setSelectedCategory(categoryId);
-                            setShowCategoryMenu(false);
-                          }}
-                        >
-                          {category.name}
-                        </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          {/* RESULTS */}
-          <div className="customer-products-results-bar">
-            <div>
-              <strong>{selectedCategoryName}</strong>
-
+            <div className="customer-cart-summary-content">
               <span>
-                {filteredProducts.length}{" "}
-                {filteredProducts.length === 1 ? "product" : "products"}
+                {cartCount}{" "}
+                {cartCount === 1
+                  ? "item"
+                  : "items"}
               </span>
+
+              <strong>
+                ₹
+                {cartTotal.toFixed(2)}
+              </strong>
             </div>
+
+            <div className="customer-cart-summary-arrow">
+              <FaArrowRight />
+            </div>
+          </motion.button>
+        </motion.div>
+
+        {/* =====================================================
+            FILTER BAR
+        ====================================================== */}
+
+        <motion.div
+          className="customer-product-filters"
+          initial={{
+            opacity: 0,
+            y: 15,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.1,
+            duration: 0.4,
+          }}
+        >
+          <div className="customer-product-search">
+            <FaSearch />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              placeholder="Search ice creams, desserts..."
+            />
+
+            {search && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSearch("")
+                }
+                className="customer-search-clear"
+              >
+                <FaTimes />
+              </button>
+            )}
           </div>
 
-          {/* PRODUCTS */}
-          {loading ? (
-            <div className="customer-products-loading">
-              <FaSpinner className="customer-products-spinner" />
-              <span>Loading delicious treats...</span>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="customer-products-empty">
-              <div className="customer-products-empty-icon">
-                <FaIceCream />
-              </div>
+          <div className="customer-category-filter">
+            <FaFilter />
 
-              <h2>No products found</h2>
+            <select
+              value={selectedCategory}
+              onChange={(event) =>
+                setSelectedCategory(
+                  event.target.value
+                )
+              }
+              disabled={categoryLoading}
+            >
+              <option value="all">
+                All Categories
+              </option>
 
-              <p>
-                {search
-                  ? "Try searching for something else."
-                  : "There are currently no products available."}
-              </p>
-
-              {search && (
-                <button type="button" onClick={clearSearch}>
-                  Clear Search
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="customer-products-grid">
-              {filteredProducts.map((product, index) => {
-                const quantity = getProductQuantity(product._id);
-
-                return (
-                  <motion.article
-                    key={product._id}
-                    className="customer-product-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.35,
-                      delay: index * 0.04,
-                    }}
-                    whileHover={{ y: -5 }}
+              {categories.map(
+                (category) => (
+                  <option
+                    key={category._id}
+                    value={category._id}
                   >
-                    <div className="customer-product-image">
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
+                    {category.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+        </motion.div>
 
-                            event.currentTarget.parentElement.classList.add(
-                              "image-fallback",
-                            );
-                          }}
-                        />
-                      ) : null}
+        {/* =====================================================
+            CATEGORY CHIPS
+        ====================================================== */}
 
-                      <div className="customer-product-image-fallback">
-                        <FaIceCream />
-                      </div>
+        {!categoryLoading &&
+          categories.length > 0 && (
+            <div className="customer-category-chips">
+              <button
+                type="button"
+                className={
+                  selectedCategory === "all"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setSelectedCategory("all")
+                }
+              >
+                All
+              </button>
 
-                      <span className="customer-product-category">
-                        {getCategoryName(product)}
-                      </span>
-
-                      {quantity > 0 && (
-                        <span className="customer-product-quantity">
-                          {quantity} in cart
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="customer-product-info">
-                      <span className="customer-product-sku">
-                        {product.sku || "ICE-CREAM"}
-                      </span>
-
-                      <h3>{product.name}</h3>
-
-                      <p>
-                        {product.description ||
-                          "A delicious treat made with premium ingredients."}
-                      </p>
-
-                      <div className="customer-product-footer">
-                        <div className="customer-product-price">
-                          <span>Price</span>
-                          <strong>
-                            ₹{Number(product.price || 0).toFixed(2)}
-                          </strong>
-                        </div>
-
-                        <button
-                          type="button"
-                          className={
-                            addedProduct === product._id ? "added" : ""
-                          }
-                          onClick={() => addToCart(product)}
-                        >
-                          {addedProduct === product._id ? (
-                            <>
-                              <FaCheck />
-                              Added
-                            </>
-                          ) : (
-                            <>
-                              <FaCartPlus />
-                              Add
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </motion.article>
-                );
-              })}
+              {categories.map(
+                (category) => (
+                  <button
+                    type="button"
+                    key={category._id}
+                    className={
+                      selectedCategory ===
+                      category._id
+                        ? "active"
+                        : ""
+                    }
+                    onClick={() =>
+                      setSelectedCategory(
+                        category._id
+                      )
+                    }
+                  >
+                    {category.name}
+                  </button>
+                )
+              )}
             </div>
           )}
 
-          {/* BOTTOM CART BAR */}
-          <AnimatePresence>
-            {cartCount > 0 && (
-              <motion.div
-                className="customer-products-floating-cart"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 30 }}
-              >
-                <div className="customer-products-floating-cart-icon">
-                  <FaShoppingBag />
-                  <span>{cartCount}</span>
-                </div>
+        {/* =====================================================
+            RESULT INFO
+        ====================================================== */}
 
-                <div className="customer-products-floating-cart-info">
-                  <strong>Your Cart</strong>
-                  <span>
-                    {cartCount} {cartCount === 1 ? "item" : "items"}
-                  </span>
-                </div>
-
-                <strong className="customer-products-floating-total">
-                  ₹{cartTotal.toFixed(2)}
+        {!loading &&
+          !error && (
+            <div className="customer-products-result-bar">
+              <div>
+                <strong>
+                  {selectedCategory ===
+                  "all"
+                    ? "All Products"
+                    : categories.find(
+                        (category) =>
+                          category._id ===
+                          selectedCategory
+                      )?.name ||
+                      "Products"}
                 </strong>
 
+                <span>
+                  {" "}
+                  •{" "}
+                  {filteredProducts.length}{" "}
+                  products
+                </span>
+              </div>
+
+              {(search ||
+                selectedCategory !==
+                  "all") && (
                 <button
                   type="button"
-                  onClick={() => {
-                    window.location.href = "/customer/cart";
-                  }}
+                  onClick={clearFilters}
                 >
-                  Go to Cart
-                  <FaArrowRight />
+                  Clear filters
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-      </main>
+              )}
+            </div>
+          )}
+
+        {/* =====================================================
+            LOADING
+        ====================================================== */}
+
+        {loading && (
+          <div className="customer-products-state">
+            <FaSpinner className="spin" />
+
+            <h3>
+              Loading delicious treats...
+            </h3>
+
+            <p>
+              We're preparing the menu
+              for you.
+            </p>
+          </div>
+        )}
+
+        {/* =====================================================
+            ERROR
+        ====================================================== */}
+
+        {!loading && error && (
+          <div className="customer-products-state error">
+            <div className="state-icon">
+              <FaExclamationCircle />
+            </div>
+
+            <h3>
+              Unable to load products
+            </h3>
+
+            <p>{error}</p>
+
+            <button
+              type="button"
+              onClick={fetchProducts}
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* =====================================================
+            EMPTY
+        ====================================================== */}
+
+        {!loading &&
+          !error &&
+          filteredProducts.length ===
+            0 && (
+            <div className="customer-products-state">
+              <div className="state-icon">
+                <FaIceCream />
+              </div>
+
+              <h3>
+                No products found
+              </h3>
+
+              <p>
+                {search ||
+                selectedCategory !==
+                  "all"
+                  ? "Try changing your search or category filter."
+                  : "There are currently no products available."}
+              </p>
+
+              {(search ||
+                selectedCategory !==
+                  "all") && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          )}
+
+        {/* =====================================================
+            PRODUCT GRID
+        ====================================================== */}
+
+        {!loading &&
+          !error &&
+          filteredProducts.length >
+            0 && (
+            <motion.div
+              className="customer-products-grid"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: {},
+                visible: {
+                  transition: {
+                    staggerChildren: 0.045,
+                  },
+                },
+              }}
+            >
+              <AnimatePresence>
+                {filteredProducts.map(
+                  (product) => {
+                    const quantity =
+                      getCartQuantity(
+                        product._id
+                      );
+
+                    const categoryName =
+                      typeof product.category ===
+                      "object"
+                        ? product.category
+                            ?.name
+                        : "";
+
+                    return (
+                      <motion.article
+                        key={product._id}
+                        className="customer-product-card"
+                        variants={{
+                          hidden: {
+                            opacity: 0,
+                            y: 20,
+                          },
+                          visible: {
+                            opacity: 1,
+                            y: 0,
+                          },
+                        }}
+                        layout
+                      >
+                        {/* IMAGE */}
+
+                        <div className="customer-product-image">
+                          {product.image ? (
+                            <img
+                              src={
+                                product.image
+                              }
+                              alt={
+                                product.name
+                              }
+                              onError={(
+                                event
+                              ) => {
+                                event.currentTarget.style.display =
+                                  "none";
+
+                                event.currentTarget.parentElement.classList.add(
+                                  "fallback"
+                                );
+                              }}
+                            />
+                          ) : (
+                            <div className="customer-product-image-placeholder">
+                              <FaIceCream />
+                            </div>
+                          )}
+
+                          <div className="customer-product-image-overlay">
+                            <span>
+                              {categoryName ||
+                                "Ice Cream"}
+                            </span>
+                          </div>
+
+                          {quantity > 0 && (
+                            <motion.div
+                              className="customer-product-added"
+                              initial={{
+                                scale: 0,
+                              }}
+                              animate={{
+                                scale: 1,
+                              }}
+                            >
+                              <FaCheck />
+                              Added
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {/* CONTENT */}
+
+                        <div className="customer-product-content">
+                          <div className="customer-product-title-row">
+                            <div>
+                              <h3>
+                                {
+                                  product.name
+                                }
+                              </h3>
+
+                              {product.sku && (
+                                <span className="customer-product-sku">
+                                  {
+                                    product.sku
+                                  }
+                                </span>
+                              )}
+                            </div>
+
+                            <strong className="customer-product-price">
+                              ₹
+                              {Number(
+                                product.price ||
+                                  0
+                              ).toFixed(2)}
+                            </strong>
+                          </div>
+
+                          {product.description && (
+                            <p className="customer-product-description">
+                              {
+                                product.description
+                              }
+                            </p>
+                          )}
+
+                          <div className="customer-product-footer">
+                            <span className="customer-product-unit">
+                              Per{" "}
+                              {product.unit ||
+                                "piece"}
+                            </span>
+
+                            {quantity ===
+                            0 ? (
+                              <motion.button
+                                type="button"
+                                className="add-cart-button"
+                                onClick={() =>
+                                  addToCart(
+                                    product
+                                  )
+                                }
+                                whileHover={{
+                                  y: -2,
+                                }}
+                                whileTap={{
+                                  scale: 0.96,
+                                }}
+                              >
+                                <FaPlus />
+                                Add to Cart
+                              </motion.button>
+                            ) : (
+                              <div className="product-quantity-control">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    decreaseQuantity(
+                                      product._id
+                                    )
+                                  }
+                                  aria-label="Decrease quantity"
+                                >
+                                  <FaMinus />
+                                </button>
+
+                                <span>
+                                  {quantity}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    increaseQuantity(
+                                      product._id
+                                    )
+                                  }
+                                  aria-label="Increase quantity"
+                                >
+                                  <FaPlus />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.article>
+                    );
+                  }
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+        {/* =====================================================
+            FLOATING CART
+        ====================================================== */}
+
+        {cartCount > 0 && (
+          <motion.button
+            className="customer-floating-cart"
+            onClick={goToCart}
+            initial={{
+              opacity: 0,
+              y: 30,
+              scale: 0.9,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            }}
+            exit={{
+              opacity: 0,
+              y: 30,
+              scale: 0.9,
+            }}
+            whileHover={{
+              y: -4,
+            }}
+            whileTap={{
+              scale: 0.96,
+            }}
+          >
+            <div className="floating-cart-icon">
+              <FaShoppingCart />
+
+              <span>
+                {cartCount}
+              </span>
+            </div>
+
+            <div className="floating-cart-text">
+              <strong>
+                View Cart
+              </strong>
+
+              <small>
+                {cartCount}{" "}
+                {cartCount === 1
+                  ? "item"
+                  : "items"}
+              </small>
+            </div>
+
+            <strong className="floating-cart-total">
+              ₹
+              {cartTotal.toFixed(2)}
+            </strong>
+
+            <FaArrowRight />
+          </motion.button>
+        )}
+      </div>
     </div>
   );
 };

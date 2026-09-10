@@ -19,34 +19,37 @@ const router = express.Router();
 
 /*
  * ============================================================
- * ORDER STATISTICS
- * ============================================================
- *
- * Admin + Staff
- *
- * Must appear before /:id.
- */
-router.get(
-  "/stats/summary",
-  protect,
-  authorize("admin", "staff"),
-  getOrderStats
-);
-
-/*
- * ============================================================
- * CUSTOMER — MY ORDERS
+ * CUSTOMER ORDERS
  * ============================================================
  *
  * GET /api/orders/my-orders
  *
  * Customer only
+ *
+ * IMPORTANT:
+ * This route must appear before /:id.
  */
 router.get(
   "/my-orders",
   protect,
   authorize("customer"),
   getMyOrders
+);
+
+/*
+ * ============================================================
+ * ORDER STATISTICS
+ * ============================================================
+ *
+ * GET /api/orders/stats/summary
+ *
+ * Admin + Staff
+ */
+router.get(
+  "/stats/summary",
+  protect,
+  authorize("admin", "staff"),
+  getOrderStats
 );
 
 /*
@@ -69,8 +72,6 @@ router.get(
  * ============================================================
  *
  * Admin + Staff
- *
- * Used by POS.
  */
 router.post(
   "/",
@@ -97,8 +98,6 @@ router.get(
  * ============================================================
  * UPDATE ORDER STATUS
  * ============================================================
- *
- * Admin + Staff
  */
 router.patch(
   "/:id/status",
@@ -111,8 +110,6 @@ router.patch(
  * ============================================================
  * CANCEL ORDER
  * ============================================================
- *
- * Admin + Staff
  */
 router.patch(
   "/:id/cancel",

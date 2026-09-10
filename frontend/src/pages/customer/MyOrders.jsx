@@ -17,7 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
-import api from "../api/api";
+import api from "../../api/api";
 import "./CustomerOrders.css";
 
 const STATUS_CONFIG = {
