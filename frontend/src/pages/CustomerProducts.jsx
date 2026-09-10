@@ -58,7 +58,7 @@ const CustomerProducts = () => {
     try {
       setLoading(true);
 
-      const response = await api.get("/products");
+      const response = await api.get("/products/available");
 
       const data = response?.data;
 
@@ -71,6 +71,15 @@ const CustomerProducts = () => {
       }
     } catch (error) {
       console.error("Failed to fetch customer products:", error);
+
+      if (error?.response) {
+        console.error(
+          "Customer products API error:",
+          error.response.status,
+          error.response.data,
+        );
+      }
+
       setProducts([]);
     } finally {
       setLoading(false);
@@ -110,9 +119,7 @@ const CustomerProducts = () => {
           : product.category;
 
       const categoryName =
-        typeof product.category === "object"
-          ? product.category?.name
-          : "";
+        typeof product.category === "object" ? product.category?.name : "";
 
       const matchesSearch =
         !query ||
@@ -137,7 +144,7 @@ const CustomerProducts = () => {
     return cart.reduce(
       (total, item) =>
         total + Number(item.price || 0) * Number(item.quantity || 0),
-      0
+      0,
     );
   }, [cart]);
 
@@ -152,8 +159,7 @@ const CustomerProducts = () => {
 
     const foundCategory = categories.find(
       (category) =>
-        category._id === product.category ||
-        category.id === product.category
+        category._id === product.category || category.id === product.category,
     );
 
     return foundCategory?.name || product.category;
@@ -164,7 +170,7 @@ const CustomerProducts = () => {
 
     setCart((previousCart) => {
       const existing = previousCart.find(
-        (item) => item.productId === product._id
+        (item) => item.productId === product._id,
       );
 
       if (existing) {
@@ -174,7 +180,7 @@ const CustomerProducts = () => {
                 ...item,
                 quantity: Number(item.quantity || 0) + 1,
               }
-            : item
+            : item,
         );
       }
 
@@ -213,7 +219,7 @@ const CustomerProducts = () => {
       : categories.find(
           (category) =>
             category._id === selectedCategory ||
-            category.id === selectedCategory
+            category.id === selectedCategory,
         )?.name || selectedCategory;
 
   return (
@@ -232,10 +238,7 @@ const CustomerProducts = () => {
         </div>
 
         <nav className="customer-products-navigation">
-          <a
-            href="/customer/dashboard"
-            className="customer-products-nav-item"
-          >
+          <a href="/customer/dashboard" className="customer-products-nav-item">
             <FaBoxOpen />
             <span>Dashboard</span>
           </a>
@@ -248,40 +251,26 @@ const CustomerProducts = () => {
             <span>Browse Products</span>
           </a>
 
-          <a
-            href="/customer/orders"
-            className="customer-products-nav-item"
-          >
+          <a href="/customer/orders" className="customer-products-nav-item">
             <FaShoppingBag />
             <span>My Orders</span>
           </a>
 
-          <a
-            href="/customer/cart"
-            className="customer-products-nav-item"
-          >
+          <a href="/customer/cart" className="customer-products-nav-item">
             <FaCartPlus />
             <span>My Cart</span>
 
             {cartCount > 0 && (
-              <b className="customer-products-nav-count">
-                {cartCount}
-              </b>
+              <b className="customer-products-nav-count">{cartCount}</b>
             )}
           </a>
 
-          <a
-            href="/customer/invoices"
-            className="customer-products-nav-item"
-          >
+          <a href="/customer/invoices" className="customer-products-nav-item">
             <FaReceipt />
             <span>Invoices</span>
           </a>
 
-          <a
-            href="/customer/profile"
-            className="customer-products-nav-item"
-          >
+          <a href="/customer/profile" className="customer-products-nav-item">
             <FaUserCircle />
             <span>My Profile</span>
           </a>
@@ -349,15 +338,13 @@ const CustomerProducts = () => {
             animate={{ opacity: 1, y: 0 }}
           >
             <div>
-              <span className="customer-products-eyebrow">
-                OUR MENU
-              </span>
+              <span className="customer-products-eyebrow">OUR MENU</span>
 
               <h1>Find your perfect scoop</h1>
 
               <p>
-                Explore our delicious collection of ice creams,
-                desserts, beverages and more.
+                Explore our delicious collection of ice creams, desserts,
+                beverages and more.
               </p>
             </div>
 
@@ -406,14 +393,10 @@ const CustomerProducts = () => {
               <button
                 type="button"
                 className="customer-products-category-button"
-                onClick={() =>
-                  setShowCategoryMenu((previous) => !previous)
-                }
+                onClick={() => setShowCategoryMenu((previous) => !previous)}
               >
                 <span>{selectedCategoryName}</span>
-                <FaChevronDown
-                  className={showCategoryMenu ? "rotated" : ""}
-                />
+                <FaChevronDown className={showCategoryMenu ? "rotated" : ""} />
               </button>
 
               <AnimatePresence>
@@ -426,9 +409,7 @@ const CustomerProducts = () => {
                   >
                     <button
                       type="button"
-                      className={
-                        selectedCategory === "all" ? "selected" : ""
-                      }
+                      className={selectedCategory === "all" ? "selected" : ""}
                       onClick={() => {
                         setSelectedCategory("all");
                         setShowCategoryMenu(false);
@@ -438,17 +419,14 @@ const CustomerProducts = () => {
                     </button>
 
                     {categories.map((category) => {
-                      const categoryId =
-                        category._id || category.id;
+                      const categoryId = category._id || category.id;
 
                       return (
                         <button
                           type="button"
                           key={categoryId}
                           className={
-                            selectedCategory === categoryId
-                              ? "selected"
-                              : ""
+                            selectedCategory === categoryId ? "selected" : ""
                           }
                           onClick={() => {
                             setSelectedCategory(categoryId);
@@ -468,15 +446,11 @@ const CustomerProducts = () => {
           {/* RESULTS */}
           <div className="customer-products-results-bar">
             <div>
-              <strong>
-                {selectedCategoryName}
-              </strong>
+              <strong>{selectedCategoryName}</strong>
 
               <span>
                 {filteredProducts.length}{" "}
-                {filteredProducts.length === 1
-                  ? "product"
-                  : "products"}
+                {filteredProducts.length === 1 ? "product" : "products"}
               </span>
             </div>
           </div>
@@ -502,10 +476,7 @@ const CustomerProducts = () => {
               </p>
 
               {search && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                >
+                <button type="button" onClick={clearSearch}>
                   Clear Search
                 </button>
               )}
@@ -533,11 +504,10 @@ const CustomerProducts = () => {
                           src={product.image}
                           alt={product.name}
                           onError={(event) => {
-                            event.currentTarget.style.display =
-                              "none";
+                            event.currentTarget.style.display = "none";
 
                             event.currentTarget.parentElement.classList.add(
-                              "image-fallback"
+                              "image-fallback",
                             );
                           }}
                         />
@@ -581,9 +551,7 @@ const CustomerProducts = () => {
                         <button
                           type="button"
                           className={
-                            addedProduct === product._id
-                              ? "added"
-                              : ""
+                            addedProduct === product._id ? "added" : ""
                           }
                           onClick={() => addToCart(product)}
                         >
@@ -624,8 +592,7 @@ const CustomerProducts = () => {
                 <div className="customer-products-floating-cart-info">
                   <strong>Your Cart</strong>
                   <span>
-                    {cartCount}{" "}
-                    {cartCount === 1 ? "item" : "items"}
+                    {cartCount} {cartCount === 1 ? "item" : "items"}
                   </span>
                 </div>
 
