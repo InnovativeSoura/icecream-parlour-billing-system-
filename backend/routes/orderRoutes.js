@@ -3,6 +3,7 @@ import express from "express";
 import {
   createOrder,
   getOrders,
+  getMyOrders,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
@@ -21,7 +22,7 @@ const router = express.Router();
  * ORDER STATISTICS
  * ============================================================
  *
- * Admin / Staff only
+ * Admin + Staff
  *
  * Must appear before /:id.
  */
@@ -34,22 +35,31 @@ router.get(
 
 /*
  * ============================================================
- * GET ORDERS
+ * CUSTOMER — MY ORDERS
  * ============================================================
  *
- * Admin / Staff:
- *   - Can view all orders
+ * GET /api/orders/my-orders
  *
- * Customer:
- *   - Can view only their own orders
+ * Customer only
+ */
+router.get(
+  "/my-orders",
+  protect,
+  authorize("customer"),
+  getMyOrders
+);
+
+/*
+ * ============================================================
+ * GET ALL ORDERS
+ * ============================================================
  *
- * IMPORTANT:
- * The controller must filter customer results using req.user._id.
+ * Admin + Staff
  */
 router.get(
   "/",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize("admin", "staff"),
   getOrders
 );
 
@@ -58,20 +68,14 @@ router.get(
  * CREATE ORDER
  * ============================================================
  *
- * Admin / Staff:
- *   - POS orders
+ * Admin + Staff
  *
- * Customer:
- *   - Online orders
- *
- * IMPORTANT:
- * The controller must correctly assign the authenticated
- * customer to the order when req.user.role === "customer".
+ * Used by POS.
  */
 router.post(
   "/",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize("admin", "staff"),
   createOrder
 );
 
@@ -80,19 +84,12 @@ router.post(
  * GET ORDER BY ID
  * ============================================================
  *
- * Admin / Staff:
- *   - Can view any order
- *
- * Customer:
- *   - Can view only their own order
- *
- * IMPORTANT:
- * The controller must enforce ownership for customers.
+ * Admin + Staff
  */
 router.get(
   "/:id",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize("admin", "staff"),
   getOrderById
 );
 
@@ -101,10 +98,7 @@ router.get(
  * UPDATE ORDER STATUS
  * ============================================================
  *
- * Admin / Staff only
- *
- * Customers must NOT be allowed to directly change
- * order status.
+ * Admin + Staff
  */
 router.patch(
   "/:id/status",
@@ -118,19 +112,12 @@ router.patch(
  * CANCEL ORDER
  * ============================================================
  *
- * Admin / Staff:
- *   - Can cancel orders
- *
- * Customer:
- *   - Should only be able to cancel their own eligible order.
- *
- * The controller should enforce ownership and allowed
- * cancellation statuses for customers.
+ * Admin + Staff
  */
 router.patch(
   "/:id/cancel",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize("admin", "staff"),
   cancelOrder
 );
 
