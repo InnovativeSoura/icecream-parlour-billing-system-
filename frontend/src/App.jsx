@@ -21,6 +21,7 @@ import Register from "./pages/Register";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import StaffDashboard from "./pages/StaffDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
+import CustomerProducts from "./pages/CustomerProducts";
 
 // =====================================================
 // ADMIN / STAFF
@@ -299,6 +300,11 @@ const App = () => {
           <Route
             path="/customer/dashboard"
             element={<CustomerDashboard />}
+          />
+          
+          <Route
+            path="/customer/products"
+            element={<CustomerProducts />}
           />
 
           {/* Browse Products */}
