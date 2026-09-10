@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 
 import { useAuth } from "../context/AuthContext";
-import CustomerLayout from "../components/CustomerLayout";
+
 
 import "./CustomerDashboard.css";
 
@@ -79,7 +79,6 @@ const CustomerDashboard = () => {
   ];
 
   return (
-    <CustomerLayout>
       <div className="customer-dashboard-page">
 
         {/* =================================================
@@ -336,7 +335,6 @@ const CustomerDashboard = () => {
         </section>
 
       </div>
-    </CustomerLayout>
   );
 };
 
