@@ -1,5 +1,3 @@
-// frontend/src/App.jsx
-
 import {
   Navigate,
   Route,
@@ -38,6 +36,94 @@ import Customer from "./pages/Customers.jsx";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
+
+// =====================================================
+// CUSTOMER PLACEHOLDER
+// =====================================================
+
+const CustomerPagePlaceholder = ({ title, description }) => {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: "30px",
+        background: "#f7f8fc",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "550px",
+          padding: "45px",
+          textAlign: "center",
+          background: "#ffffff",
+          borderRadius: "24px",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.08)",
+        }}
+      >
+        <div
+          style={{
+            width: "64px",
+            height: "64px",
+            margin: "0 auto 20px",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: "18px",
+            background:
+              "linear-gradient(135deg, #7657e8, #d16d9b)",
+            color: "#ffffff",
+            fontSize: "26px",
+            fontWeight: "800",
+          }}
+        >
+          🍦
+        </div>
+
+        <h1
+          style={{
+            margin: "0 0 12px",
+            color: "#292c3d",
+            fontSize: "26px",
+          }}
+        >
+          {title}
+        </h1>
+
+        <p
+          style={{
+            margin: "0 0 25px",
+            color: "#8d91a5",
+            fontSize: "14px",
+            lineHeight: "1.7",
+          }}
+        >
+          {description}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = "/customer/dashboard";
+          }}
+          style={{
+            border: "none",
+            padding: "12px 20px",
+            borderRadius: "12px",
+            background: "#7657e8",
+            color: "#ffffff",
+            fontWeight: "700",
+            cursor: "pointer",
+          }}
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // =====================================================
 // HOME REDIRECT
@@ -134,7 +220,7 @@ const App = () => {
         />
 
         {/* =================================================
-            ADMIN ENTRY
+            ADMIN
         ================================================= */}
 
         <Route
@@ -144,7 +230,6 @@ const App = () => {
             />
           }
         >
-
           <Route
             path="/admin"
             element={
@@ -159,11 +244,10 @@ const App = () => {
             path="/admin/dashboard"
             element={<AdminDashboard />}
           />
-
         </Route>
 
         {/* =================================================
-            STAFF ENTRY
+            STAFF
         ================================================= */}
 
         <Route
@@ -173,7 +257,6 @@ const App = () => {
             />
           }
         >
-
           <Route
             path="/staff"
             element={
@@ -188,11 +271,10 @@ const App = () => {
             path="/staff/dashboard"
             element={<StaffDashboard />}
           />
-
         </Route>
 
         {/* =================================================
-            CUSTOMER ENTRY
+            CUSTOMER
         ================================================= */}
 
         <Route
@@ -202,7 +284,7 @@ const App = () => {
             />
           }
         >
-
+          {/* Customer root */}
           <Route
             path="/customer"
             element={
@@ -213,11 +295,66 @@ const App = () => {
             }
           />
 
+          {/* Dashboard */}
           <Route
             path="/customer/dashboard"
             element={<CustomerDashboard />}
           />
 
+          {/* Browse Products */}
+          <Route
+            path="/customer/products"
+            element={
+              <CustomerPagePlaceholder
+                title="Browse Products"
+                description="Your customer shopping experience will be available here."
+              />
+            }
+          />
+
+          {/* Orders */}
+          <Route
+            path="/customer/orders"
+            element={
+              <CustomerPagePlaceholder
+                title="My Orders"
+                description="Your orders and order tracking will be available here."
+              />
+            }
+          />
+
+          {/* Cart */}
+          <Route
+            path="/customer/cart"
+            element={
+              <CustomerPagePlaceholder
+                title="My Cart"
+                description="Your shopping cart and checkout experience will be available here."
+              />
+            }
+          />
+
+          {/* Invoices */}
+          <Route
+            path="/customer/invoices"
+            element={
+              <CustomerPagePlaceholder
+                title="Invoices"
+                description="Your invoices and payment receipts will be available here."
+              />
+            }
+          />
+
+          {/* Profile */}
+          <Route
+            path="/customer/profile"
+            element={
+              <CustomerPagePlaceholder
+                title="My Profile"
+                description="Your customer profile and account settings will be available here."
+              />
+            }
+          />
         </Route>
 
         {/* =================================================
@@ -232,12 +369,10 @@ const App = () => {
             />
           }
         >
-
           <Route
             path="/products"
             element={<Products />}
           />
-
         </Route>
 
         {/* =================================================
@@ -252,12 +387,10 @@ const App = () => {
             />
           }
         >
-
           <Route
             path="/inventory"
             element={<Inventory />}
           />
-
         </Route>
 
         {/* =================================================
@@ -272,12 +405,10 @@ const App = () => {
             />
           }
         >
-
           <Route
             path="/customers"
             element={<Customer />}
           />
-
         </Route>
 
         {/* =================================================
