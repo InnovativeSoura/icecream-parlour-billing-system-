@@ -25,6 +25,12 @@ import StaffDashboard from "./pages/StaffDashboard.jsx";
 import CustomerDashboard from "./pages/CustomerDashboard.jsx";
 
 // =====================================================
+// CUSTOMER LAYOUT
+// =====================================================
+
+import CustomerLayout from "./components/CustomerLayout";
+
+// =====================================================
 // CUSTOMER PAGES
 // =====================================================
 
@@ -71,8 +77,7 @@ const HomeRedirect = () => {
             "linear-gradient(135deg, #f8f7ff, #ffffff)",
           color: "#5f4bd8",
           fontFamily:
-            "Inter, -apple-system, BlinkMacSystemFont, " +
-            '"Segoe UI", sans-serif',
+            'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: "14px",
           fontWeight: 700,
         }}
@@ -199,7 +204,7 @@ const App = () => {
             }
           />
 
-          {/* Admin Dashboard */}
+          {/* Admin dashboard */}
 
           <Route
             path="/admin/dashboard"
@@ -233,7 +238,7 @@ const App = () => {
             }
           />
 
-          {/* Staff Dashboard */}
+          {/* Staff dashboard */}
 
           <Route
             path="/staff/dashboard"
@@ -245,8 +250,11 @@ const App = () => {
 
         {/* =================================================
             CUSTOMER ROUTES
-            CustomerLayout is handled inside each
-            customer page/component.
+            CustomerLayout provides:
+            - Sidebar
+            - Topbar
+            - Mobile navigation
+            - Outlet for customer pages
         ================================================= */}
 
         <Route
@@ -257,79 +265,84 @@ const App = () => {
           }
         >
 
-          {/* -------------------------------------------------
-              CUSTOMER ROOT
-          ------------------------------------------------- */}
+          {/* =================================================
+              CUSTOMER LAYOUT
+          ================================================= */}
 
           <Route
             path="/customer"
-            element={
-              <Navigate
-                to="/customer/dashboard"
-                replace
-              />
-            }
-          />
+            element={<CustomerLayout />}
+          >
 
+            {/* -------------------------------------------------
+                CUSTOMER ROOT
+            ------------------------------------------------- */}
 
-          {/* -------------------------------------------------
-              CUSTOMER DASHBOARD
-          ------------------------------------------------- */}
+            <Route
+              index
+              element={
+                <Navigate
+                  to="/customer/dashboard"
+                  replace
+                />
+              }
+            />
 
-          <Route
-            path="/customer/dashboard"
-            element={<CustomerDashboard />}
-          />
+            {/* -------------------------------------------------
+                CUSTOMER DASHBOARD
+            ------------------------------------------------- */}
 
+            <Route
+              path="dashboard"
+              element={<CustomerDashboard />}
+            />
 
-          {/* -------------------------------------------------
-              BROWSE PRODUCTS
-          ------------------------------------------------- */}
+            {/* -------------------------------------------------
+                BROWSE PRODUCTS
+            ------------------------------------------------- */}
 
-          <Route
-            path="/customer/products"
-            element={<CustomerProducts />}
-          />
+            <Route
+              path="products"
+              element={<CustomerProducts />}
+            />
 
+            {/* -------------------------------------------------
+                MY ORDERS
+            ------------------------------------------------- */}
 
-          {/* -------------------------------------------------
-              MY ORDERS
-          ------------------------------------------------- */}
+            <Route
+              path="orders"
+              element={<CustomerOrders />}
+            />
 
-          <Route
-            path="/customer/orders"
-            element={<CustomerOrders />}
-          />
+            {/* -------------------------------------------------
+                MY CART
+            ------------------------------------------------- */}
 
+            <Route
+              path="cart"
+              element={<CustomerCart />}
+            />
 
-          {/* -------------------------------------------------
-              MY CART
-          ------------------------------------------------- */}
+            {/* -------------------------------------------------
+                INVOICES
+            ------------------------------------------------- */}
 
-          <Route
-            path="/customer/cart"
-            element={<CustomerCart />}
-          />
+            <Route
+              path="invoices"
+              element={<CustomerInvoices />}
+            />
 
+            {/* -------------------------------------------------
+                MY PROFILE
+            ------------------------------------------------- */}
 
-          {/* -------------------------------------------------
-              INVOICES
-          ------------------------------------------------- */}
+            <Route
+              path="profile"
+              element={<CustomerProfile />}
+            />
 
-          <Route
-            path="/customer/invoices"
-            element={<CustomerInvoices />}
-          />
-
-
-          {/* -------------------------------------------------
-              MY PROFILE
-          ------------------------------------------------- */}
-
-          <Route
-            path="/customer/profile"
-            element={<CustomerProfile />}
-          />
+          </Route>
 
         </Route>
 
