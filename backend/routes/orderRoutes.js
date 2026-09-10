@@ -21,6 +21,8 @@ const router = express.Router();
  * ORDER STATISTICS
  * ============================================================
  *
+ * Admin / Staff only
+ *
  * Must appear before /:id.
  */
 router.get(
@@ -32,13 +34,22 @@ router.get(
 
 /*
  * ============================================================
- * GET ALL ORDERS
+ * GET ORDERS
  * ============================================================
+ *
+ * Admin / Staff:
+ *   - Can view all orders
+ *
+ * Customer:
+ *   - Can view only their own orders
+ *
+ * IMPORTANT:
+ * The controller must filter customer results using req.user._id.
  */
 router.get(
   "/",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   getOrders
 );
 
@@ -47,14 +58,20 @@ router.get(
  * CREATE ORDER
  * ============================================================
  *
- * Staff + Admin
+ * Admin / Staff:
+ *   - POS orders
  *
- * Used by POS.
+ * Customer:
+ *   - Online orders
+ *
+ * IMPORTANT:
+ * The controller must correctly assign the authenticated
+ * customer to the order when req.user.role === "customer".
  */
 router.post(
   "/",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   createOrder
 );
 
@@ -62,11 +79,20 @@ router.post(
  * ============================================================
  * GET ORDER BY ID
  * ============================================================
+ *
+ * Admin / Staff:
+ *   - Can view any order
+ *
+ * Customer:
+ *   - Can view only their own order
+ *
+ * IMPORTANT:
+ * The controller must enforce ownership for customers.
  */
 router.get(
   "/:id",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   getOrderById
 );
 
@@ -74,6 +100,11 @@ router.get(
  * ============================================================
  * UPDATE ORDER STATUS
  * ============================================================
+ *
+ * Admin / Staff only
+ *
+ * Customers must NOT be allowed to directly change
+ * order status.
  */
 router.patch(
   "/:id/status",
@@ -86,11 +117,20 @@ router.patch(
  * ============================================================
  * CANCEL ORDER
  * ============================================================
+ *
+ * Admin / Staff:
+ *   - Can cancel orders
+ *
+ * Customer:
+ *   - Should only be able to cancel their own eligible order.
+ *
+ * The controller should enforce ownership and allowed
+ * cancellation statuses for customers.
  */
 router.patch(
   "/:id/cancel",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   cancelOrder
 );
 

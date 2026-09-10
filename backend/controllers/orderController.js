@@ -12,10 +12,63 @@ const roundMoney = (value) => {
   return Math.round((Number(value) || 0) * 100) / 100;
 };
 
+/*
+ * ============================================================
+ * RESOLVE CUSTOMER FOR AUTHENTICATED USER
+ * ============================================================
+ *
+ * Customer authentication uses the authenticated User account.
+ * The Customer collection may be linked either through:
+ *
+ * 1. user -> req.user._id
+ * 2. email -> req.user.email
+ *
+ * This helper supports both.
+ */
+const resolveAuthenticatedCustomer = async (user) => {
+  if (!user?._id) {
+    return null;
+  }
+
+  let customer = null;
+
+  /*
+   * First try a direct User -> Customer relationship.
+   */
+  try {
+    customer = await Customer.findOne({
+      user: user._id,
+    });
+  } catch (error) {
+    /*
+     * If the Customer schema does not contain a user field,
+     * simply continue to the email lookup.
+     */
+  }
+
+  /*
+   * Fallback to authenticated user's email.
+   */
+  if (!customer && user.email) {
+    customer = await Customer.findOne({
+      email: user.email.toLowerCase().trim(),
+    });
+  }
+
+  return customer;
+};
+
+/*
+ * ============================================================
+ * GENERATE ORDER NUMBER
+ * ============================================================
+ */
+
 const generateOrderNumber = async () => {
   const date = new Date();
 
   const year = date.getFullYear();
+
   const month = String(
     date.getMonth() + 1
   ).padStart(2, "0");
@@ -57,6 +110,12 @@ const generateOrderNumber = async () => {
   )}`;
 };
 
+/*
+ * ============================================================
+ * FORMAT ORDER
+ * ============================================================
+ */
+
 const formatOrder = (order) => {
   if (!order) {
     return null;
@@ -64,19 +123,30 @@ const formatOrder = (order) => {
 
   return {
     id: order._id,
-    orderNumber: order.orderNumber,
 
-    customer: order.customer || null,
+    orderNumber:
+      order.orderNumber,
+
+    customer:
+      order.customer || null,
+
     customerSnapshot:
       order.customerSnapshot,
 
-    items: order.items,
+    items:
+      order.items,
 
-    subtotal: order.subtotal,
+    subtotal:
+      order.subtotal,
+
     discountAmount:
       order.discountAmount,
-    taxAmount: order.taxAmount,
-    totalAmount: order.totalAmount,
+
+    taxAmount:
+      order.taxAmount,
+
+    totalAmount:
+      order.totalAmount,
 
     paymentStatus:
       order.paymentStatus,
@@ -90,17 +160,24 @@ const formatOrder = (order) => {
     paymentOrderId:
       order.paymentOrderId || "",
 
-    status: order.status,
-    orderType: order.orderType,
+    status:
+      order.status,
 
-    notes: order.notes,
+    orderType:
+      order.orderType,
+
+    notes:
+      order.notes,
 
     createdBy:
       order.createdBy || null,
 
-    paidAt: order.paidAt,
+    paidAt:
+      order.paidAt,
+
     completedAt:
       order.completedAt,
+
     cancelledAt:
       order.cancelledAt,
 
@@ -114,19 +191,93 @@ const formatOrder = (order) => {
 
 /*
  * ============================================================
+ * GET MY ORDERS
+ * ============================================================
+ *
+ * GET /api/orders/my-orders
+ *
+ * Customer only
+ */
+
+export const getMyOrders = async (
+  req,
+  res
+) => {
+  try {
+    const customer =
+      await resolveAuthenticatedCustomer(
+        req.user
+      );
+
+    if (!customer) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Customer profile not found",
+      });
+    }
+
+    const orders =
+      await Order.find({
+        customer:
+          customer._id,
+      })
+        .populate(
+          "items.product",
+          "name image sku"
+        )
+        .populate(
+          "customer",
+          "name phone email"
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+    return res.status(200).json({
+      success: true,
+
+      count:
+        orders.length,
+
+      orders:
+        orders.map(
+          formatOrder
+        ),
+    });
+  } catch (error) {
+    console.error(
+      "Get customer orders error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to retrieve your orders",
+    });
+  }
+};
+
+/*
+ * ============================================================
  * CREATE ORDER
  * ============================================================
  *
  * POST /api/orders
  *
- * Admin + Staff
+ * Admin / Staff:
+ *   POS orders
  *
- * This creates the order only.
- *
- * Inventory will be deducted after successful payment/
- * completion in the transaction layer.
+ * Customer:
+ *   Online orders
  */
-export const createOrder = async (req, res) => {
+
+export const createOrder = async (
+  req,
+  res
+) => {
   try {
     const {
       customer,
@@ -138,8 +289,11 @@ export const createOrder = async (req, res) => {
     } = req.body;
 
     /*
-     * Validate items.
+     * ========================================================
+     * BASIC ITEM VALIDATION
+     * ========================================================
      */
+
     if (
       !Array.isArray(items) ||
       items.length === 0
@@ -152,20 +306,137 @@ export const createOrder = async (req, res) => {
     }
 
     /*
-     * Validate order type.
+     * ========================================================
+     * CUSTOMER ORDER RULES
+     * ========================================================
+     *
+     * Customer accounts are restricted to online orders.
+     *
+     * They cannot:
+     * - create POS orders
+     * - choose another customer's ID
+     * - create manual cash/card/UPI orders
      */
+
+    let customerDocument = null;
+
     if (
-      !["pos", "online"].includes(orderType)
+      req.user.role === "customer"
+    ) {
+      if (orderType !== "online") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Customers can only create online orders",
+        });
+      }
+
+      if (
+        ![
+          "razorpay",
+          "unpaid",
+        ].includes(
+          paymentMethod
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Customers must use Razorpay for online orders",
+        });
+      }
+
+      customerDocument =
+        await resolveAuthenticatedCustomer(
+          req.user
+        );
+
+      if (!customerDocument) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer profile not found",
+        });
+      }
+
+      if (
+        !customerDocument.isActive
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Your customer account is inactive",
+        });
+      }
+    } else {
+      /*
+       * ======================================================
+       * ADMIN / STAFF CUSTOMER RESOLUTION
+       * ======================================================
+       */
+
+      if (customer) {
+        if (
+          !isValidObjectId(
+            customer
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Invalid customer ID",
+          });
+        }
+
+        customerDocument =
+          await Customer.findById(
+            customer
+          );
+
+        if (!customerDocument) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Customer not found",
+          });
+        }
+
+        if (
+          !customerDocument.isActive
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "This customer account is inactive",
+          });
+        }
+      }
+    }
+
+    /*
+     * ========================================================
+     * ORDER TYPE VALIDATION
+     * ========================================================
+     */
+
+    if (
+      !["pos", "online"].includes(
+        orderType
+      )
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid order type",
+        message:
+          "Invalid order type",
       });
     }
 
     /*
-     * Validate payment method.
+     * ========================================================
+     * PAYMENT METHOD VALIDATION
+     * ========================================================
      */
+
     const allowedPaymentMethods = [
       "cash",
       "upi",
@@ -182,51 +453,31 @@ export const createOrder = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid payment method",
+        message:
+          "Invalid payment method",
       });
     }
 
     /*
-     * Resolve customer.
+     * ========================================================
+     * FETCH PRODUCTS
+     * ========================================================
      */
-    let customerDocument = null;
 
-    if (customer) {
-      if (!isValidObjectId(customer)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid customer ID",
-        });
-      }
+    const productIds =
+      items.map(
+        (item) =>
+          item.product
+      );
 
-      customerDocument =
-        await Customer.findById(customer);
-
-      if (!customerDocument) {
-        return res.status(404).json({
-          success: false,
-          message: "Customer not found",
-        });
-      }
-
-      if (!customerDocument.isActive) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "This customer account is inactive",
-        });
-      }
-    }
-
-    /*
-     * Fetch all products in one query.
-     */
-    const productIds = items.map(
-      (item) => item.product
-    );
-
-    for (const productId of productIds) {
-      if (!isValidObjectId(productId)) {
+    for (
+      const productId of productIds
+    ) {
+      if (
+        !isValidObjectId(
+          productId
+        )
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -237,15 +488,20 @@ export const createOrder = async (req, res) => {
 
     const uniqueProductIds = [
       ...new Set(
-        productIds.map((id) => id.toString())
+        productIds.map(
+          (id) =>
+            id.toString()
+        )
       ),
     ];
 
     const products =
       await Product.find({
         _id: {
-          $in: uniqueProductIds,
+          $in:
+            uniqueProductIds,
         },
+
         isActive: true,
       }).populate(
         "category",
@@ -263,28 +519,33 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    const productMap = new Map();
+    const productMap =
+      new Map();
 
-    products.forEach((product) => {
-      productMap.set(
-        product._id.toString(),
-        product
-      );
-    });
+    products.forEach(
+      (product) => {
+        productMap.set(
+          product._id.toString(),
+          product
+        );
+      }
+    );
 
     /*
-     * Build order items using product snapshots.
-     *
-     * The current product name/price is copied into
-     * the order so historical invoices remain correct
-     * even if the product changes later.
+     * ========================================================
+     * BUILD ORDER ITEMS
+     * ========================================================
      */
+
     const orderItems = [];
 
     let subtotal = 0;
+
     let itemTaxAmount = 0;
 
-    for (const item of items) {
+    for (
+      const item of items
+    ) {
       const product =
         productMap.get(
           item.product.toString()
@@ -298,7 +559,9 @@ export const createOrder = async (req, res) => {
         });
       }
 
-      if (!product.isAvailable) {
+      if (
+        !product.isAvailable
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -307,10 +570,14 @@ export const createOrder = async (req, res) => {
       }
 
       const quantity =
-        Number(item.quantity);
+        Number(
+          item.quantity
+        );
 
       if (
-        !Number.isFinite(quantity) ||
+        !Number.isFinite(
+          quantity
+        ) ||
         quantity <= 0
       ) {
         return res.status(400).json({
@@ -321,35 +588,49 @@ export const createOrder = async (req, res) => {
       }
 
       const unitPrice =
-        roundMoney(product.price);
+        roundMoney(
+          product.price
+        );
 
       const lineSubtotal =
         roundMoney(
-          unitPrice * quantity
+          unitPrice *
+            quantity
         );
 
       const taxRate =
-        Number(product.taxRate) || 0;
+        Number(
+          product.taxRate
+        ) || 0;
 
       const lineTax =
         roundMoney(
-          (lineSubtotal * taxRate) / 100
+          (lineSubtotal *
+            taxRate) /
+            100
         );
 
       const lineTotal =
         roundMoney(
-          lineSubtotal + lineTax
+          lineSubtotal +
+            lineTax
         );
 
-      subtotal += lineSubtotal;
-      itemTaxAmount += lineTax;
+      subtotal +=
+        lineSubtotal;
+
+      itemTaxAmount +=
+        lineTax;
 
       orderItems.push({
-        product: product._id,
+        product:
+          product._id,
 
-        name: product.name,
+        name:
+          product.name,
 
-        sku: product.sku,
+        sku:
+          product.sku,
 
         quantity,
 
@@ -357,27 +638,44 @@ export const createOrder = async (req, res) => {
 
         taxRate,
 
-        taxAmount: lineTax,
+        taxAmount:
+          lineTax,
 
-        discountAmount: 0,
+        discountAmount:
+          0,
 
-        subtotal: lineSubtotal,
+        subtotal:
+          lineSubtotal,
 
-        total: lineTotal,
+        total:
+          lineTotal,
       });
     }
 
-    subtotal = roundMoney(subtotal);
+    subtotal =
+      roundMoney(
+        subtotal
+      );
+
     itemTaxAmount =
-      roundMoney(itemTaxAmount);
+      roundMoney(
+        itemTaxAmount
+      );
 
     /*
-     * Validate discount.
+     * ========================================================
+     * DISCOUNT
+     * ========================================================
      */
-    const discount =
-      roundMoney(discountAmount);
 
-    if (discount < 0) {
+    const discount =
+      roundMoney(
+        discountAmount
+      );
+
+    if (
+      discount < 0
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -385,7 +683,9 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    if (discount > subtotal) {
+    if (
+      discount > subtotal
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -394,26 +694,35 @@ export const createOrder = async (req, res) => {
     }
 
     /*
-     * Tax needs to be recalculated after discount.
-     *
-     * For now, discount is distributed proportionally
-     * across taxable item totals.
+     * ========================================================
+     * FINAL TAX
+     * ========================================================
      */
-    let finalTax = itemTaxAmount;
+
+    let finalTax =
+      itemTaxAmount;
 
     if (
       discount > 0 &&
       subtotal > 0
     ) {
       const taxableBase =
-        subtotal - discount;
+        subtotal -
+        discount;
 
       finalTax =
         roundMoney(
           itemTaxAmount *
-            (taxableBase / subtotal)
+            (taxableBase /
+              subtotal)
         );
     }
+
+    /*
+     * ========================================================
+     * FINAL TOTAL
+     * ========================================================
+     */
 
     const totalAmount =
       roundMoney(
@@ -423,28 +732,54 @@ export const createOrder = async (req, res) => {
       );
 
     /*
-     * Generate unique order number.
+     * ========================================================
+     * GENERATE ORDER NUMBER
+     * ========================================================
      */
+
     const orderNumber =
       await generateOrderNumber();
 
     /*
-     * Customer snapshot.
+     * ========================================================
+     * CUSTOMER SNAPSHOT
+     * ========================================================
      */
+
     const customerSnapshot =
       customerDocument
         ? {
-            name: customerDocument.name,
-            phone: customerDocument.phone,
-            email: customerDocument.email,
-            address: customerDocument.address,
+            name:
+              customerDocument.name,
+
+            phone:
+              customerDocument.phone,
+
+            email:
+              customerDocument.email,
+
+            address:
+              customerDocument.address,
           }
         : {
-            name: "Walk-in Customer",
-            phone: "",
-            email: "",
-            address: "",
+            name:
+              "Walk-in Customer",
+
+            phone:
+              "",
+
+            email:
+              "",
+
+            address:
+              "",
           };
+
+    /*
+     * ========================================================
+     * CREATE ORDER
+     * ========================================================
+     */
 
     const order =
       await Order.create({
@@ -456,35 +791,44 @@ export const createOrder = async (req, res) => {
 
         customerSnapshot,
 
-        items: orderItems,
+        items:
+          orderItems,
 
         subtotal,
 
-        discountAmount: discount,
+        discountAmount:
+          discount,
 
-        taxAmount: finalTax,
+        taxAmount:
+          finalTax,
 
         totalAmount,
 
         paymentStatus:
-          paymentMethod === "unpaid"
-            ? "pending"
-            : "pending",
+          "pending",
 
         paymentMethod,
 
-        status: "pending",
+        status:
+          "pending",
 
         orderType,
 
         notes:
-          typeof notes === "string"
+          typeof notes ===
+          "string"
             ? notes.trim()
             : "",
 
         createdBy:
           req.user._id,
       });
+
+    /*
+     * ========================================================
+     * POPULATE ORDER
+     * ========================================================
+     */
 
     const populatedOrder =
       await Order.findById(
@@ -497,13 +841,22 @@ export const createOrder = async (req, res) => {
         .populate(
           "createdBy",
           "name email role"
+        )
+        .populate(
+          "items.product",
+          "name image sku price taxRate unit"
         );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "Order created successfully",
+
+      message:
+        "Order created successfully",
+
       order:
-        formatOrder(populatedOrder),
+        formatOrder(
+          populatedOrder
+        ),
     });
   } catch (error) {
     console.error(
@@ -511,12 +864,16 @@ export const createOrder = async (req, res) => {
       error
     );
 
-    if (error.name === "ValidationError") {
+    if (
+      error.name ===
+      "ValidationError"
+    ) {
       const messages =
         Object.values(
           error.errors
         ).map(
-          (item) => item.message
+          (item) =>
+            item.message
         );
 
       return res.status(400).json({
@@ -526,7 +883,7 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
         "Unable to create order",
@@ -540,8 +897,18 @@ export const createOrder = async (req, res) => {
  * ============================================================
  *
  * GET /api/orders
+ *
+ * Admin / Staff:
+ *   All orders
+ *
+ * Customer:
+ *   Own orders only
  */
-export const getOrders = async (req, res) => {
+
+export const getOrders = async (
+  req,
+  res
+) => {
   try {
     const {
       search = "",
@@ -557,12 +924,18 @@ export const getOrders = async (req, res) => {
 
     const currentPage =
       Math.max(
-        parseInt(page, 10) || 1,
+        parseInt(
+          page,
+          10
+        ) || 1,
         1
       );
 
     const requestedLimit =
-      parseInt(limit, 10) || 20;
+      parseInt(
+        limit,
+        10
+      ) || 20;
 
     const perPage =
       Math.min(
@@ -576,43 +949,39 @@ export const getOrders = async (req, res) => {
     const filter = {};
 
     /*
-     * Search order number.
+     * ========================================================
+     * CUSTOMER SECURITY
+     * ========================================================
+     *
+     * Never allow the customer to choose the customer ID
+     * through a query parameter.
      */
-    if (search.trim()) {
-      filter.orderNumber = {
-        $regex:
-          search.trim().replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-          ),
-        $options: "i",
-      };
-    }
 
-    /*
-     * Validate and apply filters.
-     */
-    if (status) {
-      filter.status = status;
-    }
+    if (
+      req.user.role ===
+      "customer"
+    ) {
+      const customerDocument =
+        await resolveAuthenticatedCustomer(
+          req.user
+        );
 
-    if (paymentStatus) {
-      filter.paymentStatus =
-        paymentStatus;
-    }
+      if (!customerDocument) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer profile not found",
+        });
+      }
 
-    if (paymentMethod) {
-      filter.paymentMethod =
-        paymentMethod;
-    }
-
-    if (orderType) {
-      filter.orderType =
-        orderType;
-    }
-
-    if (customer) {
-      if (!isValidObjectId(customer)) {
+      filter.customer =
+        customerDocument._id;
+    } else if (customer) {
+      if (
+        !isValidObjectId(
+          customer
+        )
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -624,40 +993,108 @@ export const getOrders = async (req, res) => {
         customer;
     }
 
+    /*
+     * ========================================================
+     * SEARCH
+     * ========================================================
+     */
+
+    if (
+      search.trim()
+    ) {
+      filter.orderNumber = {
+        $regex:
+          search
+            .trim()
+            .replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            ),
+
+        $options:
+          "i",
+      };
+    }
+
+    /*
+     * ========================================================
+     * FILTERS
+     * ========================================================
+     */
+
+    if (status) {
+      filter.status =
+        status;
+    }
+
+    if (
+      paymentStatus
+    ) {
+      filter.paymentStatus =
+        paymentStatus;
+    }
+
+    if (
+      paymentMethod
+    ) {
+      filter.paymentMethod =
+        paymentMethod;
+    }
+
+    if (orderType) {
+      filter.orderType =
+        orderType;
+    }
+
+    /*
+     * ========================================================
+     * PAGINATION
+     * ========================================================
+     */
+
     const sortDirection =
-      sortOrder === "asc"
+      sortOrder ===
+      "asc"
         ? 1
         : -1;
 
     const skip =
-      (currentPage - 1) *
+      (currentPage -
+        1) *
       perPage;
 
     const [
       orders,
       totalOrders,
-    ] = await Promise.all([
-      Order.find(filter)
-        .populate(
-          "customer",
-          "name phone email customerType"
-        )
-        .populate(
-          "createdBy",
-          "name email role"
-        )
-        .sort({
-          createdAt:
-            sortDirection,
-        })
-        .skip(skip)
-        .limit(perPage)
-        .lean(),
+    ] =
+      await Promise.all([
+        Order.find(filter)
+          .populate(
+            "customer",
+            "name phone email customerType"
+          )
+          .populate(
+            "createdBy",
+            "name email role"
+          )
+          .populate(
+            "items.product",
+            "name image sku"
+          )
+          .sort({
+            createdAt:
+              sortDirection,
+          })
+          .skip(skip)
+          .limit(
+            perPage
+          )
+          .lean(),
 
-      Order.countDocuments(
-        filter
-      ),
-    ]);
+        Order.countDocuments(
+          filter
+        ),
+      ]);
 
     const totalPages =
       Math.ceil(
@@ -665,7 +1102,7 @@ export const getOrders = async (req, res) => {
           perPage
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
 
       orders:
@@ -675,8 +1112,11 @@ export const getOrders = async (req, res) => {
 
       pagination: {
         currentPage,
+
         perPage,
+
         totalOrders,
+
         totalPages,
 
         hasNextPage:
@@ -684,7 +1124,8 @@ export const getOrders = async (req, res) => {
           totalPages,
 
         hasPreviousPage:
-          currentPage > 1,
+          currentPage >
+          1,
       },
     });
   } catch (error) {
@@ -693,7 +1134,7 @@ export const getOrders = async (req, res) => {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
         "Unable to retrieve orders",
@@ -707,66 +1148,119 @@ export const getOrders = async (req, res) => {
  * ============================================================
  *
  * GET /api/orders/:id
+ *
+ * Admin / Staff:
+ *   Any order
+ *
+ * Customer:
+ *   Own order only
  */
-export const getOrderById = async (
-  req,
-  res
-) => {
-  try {
-    const { id } =
-      req.params;
 
-    if (
-      !isValidObjectId(id)
-    ) {
-      return res.status(400).json({
+export const getOrderById =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      const { id } =
+        req.params;
+
+      if (
+        !isValidObjectId(
+          id
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid order ID",
+        });
+      }
+
+      const order =
+        await Order.findById(
+          id
+        )
+          .populate(
+            "customer",
+            "name phone email address customerType"
+          )
+          .populate(
+            "createdBy",
+            "name email role"
+          )
+          .populate(
+            "items.product",
+            "name image sku price taxRate unit"
+          );
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Order not found",
+        });
+      }
+
+      /*
+       * ======================================================
+       * CUSTOMER OWNERSHIP CHECK
+       * ======================================================
+       */
+
+      if (
+        req.user.role ===
+        "customer"
+      ) {
+        const customerDocument =
+          await resolveAuthenticatedCustomer(
+            req.user
+          );
+
+        if (
+          !customerDocument
+        ) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Customer profile not found",
+          });
+        }
+
+        if (
+          !order.customer ||
+          order.customer._id.toString() !==
+            customerDocument._id.toString()
+        ) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "You are not authorized to view this order",
+          });
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+
+        order:
+          formatOrder(
+            order
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "Get order error:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
         message:
-          "Invalid order ID",
+          "Unable to retrieve order",
       });
     }
-
-    const order =
-      await Order.findById(id)
-        .populate(
-          "customer",
-          "name phone email address customerType"
-        )
-        .populate(
-          "createdBy",
-          "name email role"
-        )
-        .populate(
-          "items.product",
-          "name sku price taxRate unit"
-        );
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Order not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      order:
-        formatOrder(order),
-    });
-  } catch (error) {
-    console.error(
-      "Get order error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Unable to retrieve order",
-    });
-  }
-};
+  };
 
 /*
  * ============================================================
@@ -775,10 +1269,14 @@ export const getOrderById = async (
  *
  * PATCH /api/orders/:id/status
  *
- * Admin + Staff
+ * Admin + Staff only
  */
+
 export const updateOrderStatus =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const { id } =
         req.params;
@@ -787,7 +1285,9 @@ export const updateOrderStatus =
         req.body;
 
       if (
-        !isValidObjectId(id)
+        !isValidObjectId(
+          id
+        )
       ) {
         return res.status(400).json({
           success: false,
@@ -819,7 +1319,9 @@ export const updateOrderStatus =
       }
 
       const order =
-        await Order.findById(id);
+        await Order.findById(
+          id
+        );
 
       if (!order) {
         return res.status(404).json({
@@ -829,14 +1331,11 @@ export const updateOrderStatus =
         });
       }
 
-      /*
-       * Don't allow changing a refunded order
-       * back into an active state.
-       */
       if (
         order.status ===
           "refunded" &&
-        status !== "refunded"
+        status !==
+          "refunded"
       ) {
         return res.status(400).json({
           success: false,
@@ -845,10 +1344,6 @@ export const updateOrderStatus =
         });
       }
 
-      /*
-       * Don't allow completed order to become
-       * pending/processing.
-       */
       if (
         order.status ===
           "completed" &&
@@ -857,7 +1352,9 @@ export const updateOrderStatus =
           "pending",
           "confirmed",
           "processing",
-        ].includes(status)
+        ].includes(
+          status
+        )
       ) {
         return res.status(400).json({
           success: false,
@@ -887,12 +1384,16 @@ export const updateOrderStatus =
 
       await order.save();
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
+
         message:
           "Order status updated successfully",
+
         order:
-          formatOrder(order),
+          formatOrder(
+            order
+          ),
       });
     } catch (error) {
       console.error(
@@ -900,7 +1401,7 @@ export const updateOrderStatus =
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Unable to update order status",
@@ -915,16 +1416,26 @@ export const updateOrderStatus =
  *
  * PATCH /api/orders/:id/cancel
  *
- * Admin + Staff
+ * Admin / Staff:
+ *   Can cancel eligible orders
+ *
+ * Customer:
+ *   Can cancel only their own eligible order
  */
+
 export const cancelOrder =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const { id } =
         req.params;
 
       if (
-        !isValidObjectId(id)
+        !isValidObjectId(
+          id
+        )
       ) {
         return res.status(400).json({
           success: false,
@@ -934,7 +1445,9 @@ export const cancelOrder =
       }
 
       const order =
-        await Order.findById(id);
+        await Order.findById(
+          id
+        );
 
       if (!order) {
         return res.status(404).json({
@@ -943,6 +1456,70 @@ export const cancelOrder =
             "Order not found",
         });
       }
+
+      /*
+       * ======================================================
+       * CUSTOMER OWNERSHIP CHECK
+       * ======================================================
+       */
+
+      if (
+        req.user.role ===
+        "customer"
+      ) {
+        const customerDocument =
+          await resolveAuthenticatedCustomer(
+            req.user
+          );
+
+        if (
+          !customerDocument
+        ) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Customer profile not found",
+          });
+        }
+
+        if (
+          !order.customer ||
+          order.customer.toString() !==
+            customerDocument._id.toString()
+        ) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "You are not authorized to cancel this order",
+          });
+        }
+
+        /*
+         * Customers should only be able to cancel
+         * orders that have not entered processing.
+         */
+        if (
+          ![
+            "draft",
+            "pending",
+            "confirmed",
+          ].includes(
+            order.status
+          )
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "This order can no longer be cancelled",
+          });
+        }
+      }
+
+      /*
+       * ======================================================
+       * GENERAL CANCELLATION RULES
+       * ======================================================
+       */
 
       if (
         order.status ===
@@ -988,12 +1565,16 @@ export const cancelOrder =
 
       await order.save();
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
+
         message:
           "Order cancelled successfully",
+
         order:
-          formatOrder(order),
+          formatOrder(
+            order
+          ),
       });
     } catch (error) {
       console.error(
@@ -1001,7 +1582,7 @@ export const cancelOrder =
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Unable to cancel order",
@@ -1016,10 +1597,14 @@ export const cancelOrder =
  *
  * GET /api/orders/stats/summary
  *
- * Admin + Staff
+ * Admin + Staff only
  */
+
 export const getOrderStats =
-  async (req, res) => {
+  async (
+    req,
+    res
+  ) => {
     try {
       const [
         totalOrders,
@@ -1027,34 +1612,35 @@ export const getOrderStats =
         completedOrders,
         cancelledOrders,
         paidOrders,
-      ] = await Promise.all([
-        Order.countDocuments(),
+      ] =
+        await Promise.all([
+          Order.countDocuments(),
 
-        Order.countDocuments({
-          status: {
-            $in: [
-              "pending",
-              "confirmed",
-              "processing",
-            ],
-          },
-        }),
+          Order.countDocuments({
+            status: {
+              $in: [
+                "pending",
+                "confirmed",
+                "processing",
+              ],
+            },
+          }),
 
-        Order.countDocuments({
-          status:
-            "completed",
-        }),
+          Order.countDocuments({
+            status:
+              "completed",
+          }),
 
-        Order.countDocuments({
-          status:
-            "cancelled",
-        }),
+          Order.countDocuments({
+            status:
+              "cancelled",
+          }),
 
-        Order.countDocuments({
-          paymentStatus:
-            "paid",
-        }),
-      ]);
+          Order.countDocuments({
+            paymentStatus:
+              "paid",
+          }),
+        ]);
 
       const revenueResult =
         await Order.aggregate([
@@ -1089,12 +1675,17 @@ export const getOrderStats =
 
       const revenue =
         revenueResult[0] || {
-          totalRevenue: 0,
-          totalTax: 0,
-          totalDiscount: 0,
+          totalRevenue:
+            0,
+
+          totalTax:
+            0,
+
+          totalDiscount:
+            0,
         };
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
 
         stats: {
@@ -1130,7 +1721,7 @@ export const getOrderStats =
         error
       );
 
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message:
           "Unable to retrieve order statistics",
