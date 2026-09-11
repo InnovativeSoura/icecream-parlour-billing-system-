@@ -1772,173 +1772,124 @@ export const updateOrderStatus =
  *   Can cancel only their own eligible order
  */
 
-export const cancelOrder =
-  async (
-    req,
-    res
-  ) => {
-    try {
-      const { id } =
-        req.params;
+export const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
 
-      if (
-        !isValidObjectId(
-          id
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Invalid order ID",
-        });
-      }
-
-      const order =
-        await Order.findById(
-          id
-        );
-
-      if (!order) {
-        return res.status(404).json({
-          success: false,
-          message:
-            "Order not found",
-        });
-      }
-
-      /*
-       * ======================================================
-       * CUSTOMER OWNERSHIP CHECK
-       * ======================================================
-       */
-
-      if (
-        req.user.role ===
-        "customer"
-      ) {
-        const customerDocument =
-          await resolveAuthenticatedCustomer(
-            req.user
-          );
-
-        if (
-          !customerDocument
-        ) {
-          return res.status(404).json({
-            success: false,
-            message:
-              "Customer profile not found",
-          });
-        }
-
-        if (
-          !order.customer ||
-          order.customer.toString() !==
-            customerDocument._id.toString()
-        ) {
-          return res.status(403).json({
-            success: false,
-            message:
-              "You are not authorized to cancel this order",
-          });
-        }
-
-        /*
-         * Customers can only cancel orders that have not
-         * entered processing.
-         */
-        if (
-          ![
-            "draft",
-            "pending",
-            "confirmed",
-          ].includes(
-            order.status
-          )
-        ) {
-          return res.status(400).json({
-            success: false,
-            message:
-              "This order can no longer be cancelled",
-          });
-        }
-      }
-
-      /*
-       * ======================================================
-       * GENERAL CANCELLATION RULES
-       * ======================================================
-       */
-
-      if (
-        order.status ===
-        "completed"
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Completed orders cannot be cancelled",
-        });
-      }
-
-      if (
-        order.paymentStatus ===
-        "paid"
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "A paid order must be refunded through the payment workflow",
-        });
-      }
-
-      if (
-        order.status ===
-        "cancelled"
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Order is already cancelled",
-        });
-      }
-
-      order.status =
-        "cancelled";
-
-      order.cancelledAt =
-        new Date();
-
-      order.paymentStatus =
-        "cancelled";
-
-      await order.save();
-
-      return res.status(200).json({
-        success: true,
-
-        message:
-          "Order cancelled successfully",
-
-        order:
-          formatOrder(
-            order
-          ),
-      });
-    } catch (error) {
-      console.error(
-        "Cancel order error:",
-        error
-      );
-
-      return res.status(500).json({
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
         success: false,
-        message:
-          "Unable to cancel order",
+        message: "Invalid order ID",
       });
     }
-  };
 
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    /*
+     * CUSTOMER OWNERSHIP CHECK
+     *
+     * Customers can cancel only their own orders.
+     */
+    if (req.user.role === "customer") {
+      const customer = await Customer.findOne({
+        user: req.user._id,
+      }).select("_id");
+
+      if (
+        !customer ||
+        !order.customer ||
+        order.customer.toString() !==
+          customer._id.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You do not have permission to cancel this order",
+        });
+      }
+    }
+
+    /*
+     * Orders that have already reached these states
+     * cannot be cancelled through the normal cancel flow.
+     */
+    if (
+      [
+        "completed",
+        "cancelled",
+        "refunded",
+      ].includes(order.status)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: `Order is already ${order.status}`,
+      });
+    }
+
+    /*
+     * Once a Razorpay payment has been successfully
+     * captured, cancellation should NOT silently mark
+     * the order cancelled. A refund workflow should be
+     * used instead.
+     */
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This order has already been paid. Please request a refund instead of cancelling it.",
+      });
+    }
+
+    /*
+     * Customer cancellation is allowed only while
+     * the order is still pending or confirmed.
+     *
+     * Staff/admin can also cancel processing orders.
+     */
+    if (
+      req.user.role === "customer" &&
+      !["pending", "confirmed"].includes(order.status)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "This order can no longer be cancelled",
+      });
+    }
+
+    order.status = "cancelled";
+    order.paymentStatus = "cancelled";
+
+    /*
+     * Keep payment method intact for audit/history.
+     */
+    if (!order.paymentMethod) {
+      order.paymentMethod = "unpaid";
+    }
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled successfully",
+      order,
+    });
+  } catch (error) {
+    console.error("Cancel order error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to cancel order",
+    });
+  }
+};
 /*
  * ============================================================
  * GET ORDER STATISTICS

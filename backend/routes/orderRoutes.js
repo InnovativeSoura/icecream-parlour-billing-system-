@@ -191,10 +191,7 @@ router.patch(
 router.patch(
   "/:id/cancel",
   protect,
-  authorize(
-    "admin",
-    "staff"
-  ),
+  authorize("admin", "staff", "customer"),
   cancelOrder
 );
 
