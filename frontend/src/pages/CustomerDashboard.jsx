@@ -1,7 +1,9 @@
 // frontend/src/pages/CustomerDashboard.jsx
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+
 import {
   FaArrowRight,
   FaBoxOpen,
@@ -11,197 +13,343 @@ import {
   FaIceCream,
   FaReceipt,
   FaShoppingBag,
+  FaSpinner,
+  FaWallet,
 } from "react-icons/fa";
 
 import { useAuth } from "../context/AuthContext";
 
-
 import "./CustomerDashboard.css";
+
+const CART_KEY = "icecream_cart";
 
 const CustomerDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const customerName = useMemo(() => {
-    return user?.name?.trim() || "Customer";
-  }, [user]);
+  const [cartCount, setCartCount] = useState(0);
 
-  const firstName = customerName.split(" ")[0];
+  /* =====================================================
+     CUSTOMER NAME
+  ===================================================== */
 
-  const stats = [
-    {
-      label: "Total Orders",
-      value: "0",
-      icon: FaShoppingBag,
-      className: "orders",
-    },
-    {
-      label: "Pending Orders",
-      value: "0",
-      icon: FaClock,
-      className: "pending",
-    },
-    {
-      label: "Completed Orders",
-      value: "0",
-      icon: FaCheckCircle,
-      className: "completed",
-    },
-    {
-      label: "Total Spent",
-      value: "₹0",
-      icon: FaReceipt,
-      className: "spent",
-    },
-  ];
+  const customerName =
+    user?.name?.trim() ||
+    user?.username ||
+    user?.email?.split("@")[0] ||
+    "Customer";
+
+  /* =====================================================
+     CART COUNT
+  ===================================================== */
+
+  const getCartCount = () => {
+    try {
+      const storedCart = localStorage.getItem(CART_KEY);
+
+      if (!storedCart) {
+        return 0;
+      }
+
+      const parsedCart = JSON.parse(storedCart);
+
+      if (!Array.isArray(parsedCart)) {
+        return 0;
+      }
+
+      return parsedCart.reduce(
+        (total, item) =>
+          total + Number(item?.quantity || 1),
+        0
+      );
+    } catch (error) {
+      console.error("Failed to read cart:", error);
+      return 0;
+    }
+  };
+
+  useEffect(() => {
+    const updateCartCount = () => {
+      setCartCount(getCartCount());
+    };
+
+    updateCartCount();
+
+    window.addEventListener(
+      "cartUpdated",
+      updateCartCount
+    );
+
+    window.addEventListener(
+      "storage",
+      updateCartCount
+    );
+
+    return () => {
+      window.removeEventListener(
+        "cartUpdated",
+        updateCartCount
+      );
+
+      window.removeEventListener(
+        "storage",
+        updateCartCount
+      );
+    };
+  }, []);
+
+  /* =====================================================
+     GREETING
+  ===================================================== */
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) {
+      return "Good morning";
+    }
+
+    if (hour < 18) {
+      return "Good afternoon";
+    }
+
+    return "Good evening";
+  }, []);
+
+  /* =====================================================
+     QUICK ACTIONS
+  ===================================================== */
 
   const quickActions = [
     {
       title: "Order Ice Cream",
       description:
-        "Explore our delicious ice creams and desserts.",
-      icon: FaIceCream,
+        "Explore delicious ice creams and desserts.",
+      icon: <FaIceCream />,
       path: "/customer/products",
+      className: "purple",
     },
     {
       title: "View My Orders",
       description:
         "Track your current and previous orders.",
-      icon: FaShoppingBag,
+      icon: <FaShoppingBag />,
       path: "/customer/orders",
+      className: "blue",
     },
     {
       title: "View Cart",
       description:
         "Review your selected items and checkout.",
-      icon: FaCartPlus,
+      icon: <FaCartPlus />,
       path: "/customer/cart",
+      className: "pink",
     },
   ];
 
+  /* =====================================================
+     DASHBOARD
+  ===================================================== */
+
   return (
-      <div className="customer-dashboard-page">
+    <div className="customer-dashboard-page">
+
+      {/* =================================================
+          BACKGROUND
+      ================================================= */}
+
+      <div className="customer-dashboard-glow glow-one" />
+      <div className="customer-dashboard-glow glow-two" />
+      <div className="customer-dashboard-glow glow-three" />
+
+      <div className="customer-dashboard-container">
 
         {/* =================================================
-            WELCOME HERO
+            HERO
         ================================================= */}
 
         <motion.section
           className="customer-dashboard-hero"
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
+          transition={{
+            duration: 0.55,
+            ease: "easeOut",
+          }}
         >
-          <div className="customer-dashboard-hero-content">
 
-            <span className="customer-dashboard-eyebrow">
+          <div className="hero-content">
+
+            <span className="hero-eyebrow">
               CUSTOMER PORTAL
             </span>
 
             <h1>
-              Welcome back,{" "}
-              <span>{firstName}!</span>
+              {greeting},{" "}
+              <strong>{customerName}!</strong>
             </h1>
 
             <p>
-              Treat yourself today. Discover your favourite ice
-              creams, place an order, and enjoy every scoop.
+              Treat yourself today. Discover your favourite
+              ice creams, place an order, and enjoy every scoop.
             </p>
 
-            <button
+            <motion.button
               type="button"
-              className="customer-dashboard-primary-btn"
-              onClick={() => {
-                window.location.href =
-                  "/customer/products";
+              className="hero-primary-button"
+              onClick={() =>
+                navigate("/customer/products")
+              }
+              whileHover={{
+                y: -3,
+                scale: 1.015,
+              }}
+              whileTap={{
+                scale: 0.97,
               }}
             >
-              <span>Explore Ice Creams</span>
+              <FaIceCream />
+
+              <span>
+                Explore Ice Cream
+              </span>
+
               <FaArrowRight />
-            </button>
+            </motion.button>
 
           </div>
 
-          {/* Hero Visual */}
+          {/* Hero decoration */}
 
-          <div className="customer-dashboard-hero-visual">
+          <div className="hero-visual">
 
-            <div className="customer-dashboard-glow glow-one" />
-            <div className="customer-dashboard-glow glow-two" />
+            <div className="hero-circle hero-circle-one" />
 
-            <div className="customer-dashboard-icecream-orbit">
-              <div className="customer-dashboard-icecream-icon">
-                <FaIceCream />
-              </div>
+            <div className="hero-circle hero-circle-two" />
+
+            <div className="hero-floating-icon hero-icon-one">
+              <FaIceCream />
             </div>
 
-            <div className="customer-dashboard-floating-icon floating-one">
-              🍨
+            <div className="hero-floating-icon hero-icon-two">
+              <FaShoppingBag />
             </div>
 
-            <div className="customer-dashboard-floating-icon floating-two">
-              🍦
+            <div className="hero-floating-icon hero-icon-three">
+              <FaReceipt />
             </div>
 
-            <div className="customer-dashboard-floating-icon floating-three">
-              🍧
+            <div className="hero-main-icon">
+              <FaIceCream />
             </div>
 
           </div>
+
         </motion.section>
 
         {/* =================================================
-            ACTIVITY
+            ACTIVITY HEADER
         ================================================= */}
 
-        <section className="customer-dashboard-section">
+        <motion.div
+          className="dashboard-section-heading"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div>
+            <span>OVERVIEW</span>
+            <h2>Your Activity</h2>
+          </div>
+        </motion.div>
 
-          <div className="customer-dashboard-section-heading">
-            <div>
-              <span>OVERVIEW</span>
-              <h2>Your Activity</h2>
+        {/* =================================================
+            STATS
+        ================================================= */}
+
+        <section className="customer-stats-grid">
+
+          <motion.article
+            className="customer-stat-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            whileHover={{ y: -4 }}
+          >
+            <div className="stat-icon purple">
+              <FaShoppingBag />
             </div>
-          </div>
 
-          <div className="customer-dashboard-stats">
+            <div className="stat-info">
+              <span>Total Orders</span>
+              <strong>0</strong>
+            </div>
 
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
+            <div className="stat-decoration" />
+          </motion.article>
 
-              return (
-                <motion.div
-                  key={stat.label}
-                  className={`customer-dashboard-stat-card ${stat.className}`}
-                  initial={{
-                    opacity: 0,
-                    y: 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  transition={{
-                    duration: 0.45,
-                    delay: index * 0.08,
-                  }}
-                  whileHover={{
-                    y: -4,
-                  }}
-                >
-                  <div className="customer-dashboard-stat-icon">
-                    <Icon />
-                  </div>
 
-                  <div className="customer-dashboard-stat-details">
-                    <span>{stat.label}</span>
-                    <strong>{stat.value}</strong>
-                  </div>
+          <motion.article
+            className="customer-stat-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            whileHover={{ y: -4 }}
+          >
+            <div className="stat-icon orange">
+              <FaClock />
+            </div>
 
-                  <div className="customer-dashboard-stat-decoration" />
-                </motion.div>
-              );
-            })}
+            <div className="stat-info">
+              <span>Pending Orders</span>
+              <strong>0</strong>
+            </div>
 
-          </div>
+            <div className="stat-decoration" />
+          </motion.article>
+
+
+          <motion.article
+            className="customer-stat-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            whileHover={{ y: -4 }}
+          >
+            <div className="stat-icon green">
+              <FaCheckCircle />
+            </div>
+
+            <div className="stat-info">
+              <span>Completed Orders</span>
+              <strong>0</strong>
+            </div>
+
+            <div className="stat-decoration" />
+          </motion.article>
+
+
+          <motion.article
+            className="customer-stat-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            whileHover={{ y: -4 }}
+            onClick={() =>
+              navigate("/customer/cart")
+            }
+          >
+            <div className="stat-icon pink">
+              <FaWallet />
+            </div>
+
+            <div className="stat-info">
+              <span>Cart Items</span>
+              <strong>{cartCount}</strong>
+            </div>
+
+            <div className="stat-decoration" />
+          </motion.article>
 
         </section>
 
@@ -209,68 +357,70 @@ const CustomerDashboard = () => {
             QUICK ACCESS
         ================================================= */}
 
-        <section className="customer-dashboard-section">
-
-          <div className="customer-dashboard-section-heading">
-            <div>
-              <span>QUICK ACCESS</span>
-              <h2>What would you like to do?</h2>
-            </div>
+        <motion.div
+          className="dashboard-section-heading quick-heading"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <div>
+            <span>QUICK ACCESS</span>
+            <h2>What would you like to do?</h2>
           </div>
+        </motion.div>
 
-          <div className="customer-dashboard-actions">
 
-            {quickActions.map((action, index) => {
-              const Icon = action.icon;
+        <section className="customer-quick-grid">
 
-              return (
-                <motion.button
-                  key={action.title}
-                  type="button"
-                  className="customer-dashboard-action-card"
-                  onClick={() => {
-                    window.location.href =
-                      action.path;
-                  }}
-                  initial={{
-                    opacity: 0,
-                    y: 20,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0,
-                  }}
-                  transition={{
-                    duration: 0.45,
-                    delay: index * 0.1,
-                  }}
-                  whileHover={{
-                    y: -5,
-                  }}
-                  whileTap={{
-                    scale: 0.985,
-                  }}
-                >
-                  <div className="customer-dashboard-action-icon">
-                    <Icon />
-                  </div>
+          {quickActions.map((action, index) => (
+            <motion.button
+              type="button"
+              key={action.title}
+              className="customer-quick-card"
+              onClick={() =>
+                navigate(action.path)
+              }
+              initial={{
+                opacity: 0,
+                y: 20,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+              }}
+              transition={{
+                delay: 0.4 + index * 0.08,
+              }}
+              whileHover={{
+                y: -4,
+              }}
+              whileTap={{
+                scale: 0.98,
+              }}
+            >
 
-                  <div className="customer-dashboard-action-content">
-                    <h3>{action.title}</h3>
+              <div
+                className={`quick-icon ${action.className}`}
+              >
+                {action.icon}
+              </div>
 
-                    <p>
-                      {action.description}
-                    </p>
-                  </div>
+              <div className="quick-content">
+                <strong>
+                  {action.title}
+                </strong>
 
-                  <div className="customer-dashboard-action-arrow">
-                    <FaArrowRight />
-                  </div>
-                </motion.button>
-              );
-            })}
+                <span>
+                  {action.description}
+                </span>
+              </div>
 
-          </div>
+              <div className="quick-arrow">
+                <FaArrowRight />
+              </div>
+
+            </motion.button>
+          ))}
 
         </section>
 
@@ -278,63 +428,135 @@ const CustomerDashboard = () => {
             RECENT ORDERS
         ================================================= */}
 
-        <section className="customer-dashboard-section">
+        <motion.div
+          className="dashboard-section-heading recent-heading"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+        >
 
-          <div className="customer-dashboard-section-heading customer-dashboard-orders-heading">
-
-            <div>
-              <span>ORDER HISTORY</span>
-              <h2>Recent Orders</h2>
-            </div>
-
-            <button
-              type="button"
-              className="customer-dashboard-view-all"
-              onClick={() => {
-                window.location.href =
-                  "/customer/orders";
-              }}
-            >
-              <span>View All</span>
-              <FaArrowRight />
-            </button>
-
+          <div>
+            <span>ORDER HISTORY</span>
+            <h2>Recent Orders</h2>
           </div>
 
-          <div className="customer-dashboard-empty-orders">
+          <button
+            type="button"
+            className="view-all-button"
+            onClick={() =>
+              navigate("/customer/orders")
+            }
+          >
+            View All
+            <FaArrowRight />
+          </button>
 
-            <div className="customer-dashboard-empty-icon">
-              <FaShoppingBag />
-            </div>
+        </motion.div>
 
-            <span className="customer-dashboard-empty-label">
-              ORDER HISTORY
-            </span>
 
-            <h3>No orders yet</h3>
+        <motion.section
+          className="recent-orders-card"
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.7,
+          }}
+        >
 
-            <p>
-              Your recent orders will appear here once
-              you place your first order.
-            </p>
-
-            <button
-              type="button"
-              className="customer-dashboard-secondary-btn"
-              onClick={() => {
-                window.location.href =
-                  "/customer/products";
-              }}
-            >
-              <span>Start Shopping</span>
-              <FaArrowRight />
-            </button>
-
+          <div className="recent-empty-icon">
+            <FaBoxOpen />
           </div>
 
-        </section>
+          <span className="recent-empty-label">
+            ORDER HISTORY
+          </span>
+
+          <h3>
+            No orders yet
+          </h3>
+
+          <p>
+            Your recent orders will appear here once
+            you place your first order.
+          </p>
+
+          <motion.button
+            type="button"
+            className="start-shopping-button"
+            onClick={() =>
+              navigate("/customer/products")
+            }
+            whileHover={{
+              y: -2,
+            }}
+            whileTap={{
+              scale: 0.97,
+            }}
+          >
+            Start Shopping
+            <FaArrowRight />
+          </motion.button>
+
+        </motion.section>
+
+        {/* =================================================
+            CART NOTICE
+        ================================================= */}
+
+        {cartCount > 0 && (
+          <motion.button
+            type="button"
+            className="dashboard-cart-notice"
+            initial={{
+              opacity: 0,
+              y: 15,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              delay: 0.8,
+            }}
+            onClick={() =>
+              navigate("/customer/cart")
+            }
+            whileHover={{
+              y: -3,
+            }}
+          >
+
+            <div className="cart-notice-icon">
+              <FaCartPlus />
+            </div>
+
+            <div className="cart-notice-content">
+              <strong>
+                You have {cartCount}{" "}
+                {cartCount === 1
+                  ? "item"
+                  : "items"}{" "}
+                in your cart
+              </strong>
+
+              <span>
+                Continue your order whenever you're ready.
+              </span>
+            </div>
+
+            <FaArrowRight className="cart-notice-arrow" />
+
+          </motion.button>
+        )}
 
       </div>
+    </div>
   );
 };
 

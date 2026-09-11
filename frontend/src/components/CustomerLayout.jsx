@@ -1,7 +1,13 @@
 // frontend/src/components/CustomerLayout.jsx
 
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+
 import {
   FaBars,
   FaBoxOpen,
@@ -12,22 +18,35 @@ import {
   FaShoppingBag,
   FaTimes,
   FaUserCircle,
+  FaChevronRight,
 } from "react-icons/fa";
 
 import { useAuth } from "../context/AuthContext";
+
 import "./CustomerLayout.css";
 
 const CustomerLayout = () => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const [mobileSidebarOpen, setMobileSidebarOpen] =
+    useState(false);
+
+  /* =====================================================
+     CUSTOMER NAME
+  ===================================================== */
 
   const customerName =
     user?.name?.trim() ||
     user?.username ||
     user?.email?.split("@")[0] ||
     "Customer";
+
+  /* =====================================================
+     INITIALS
+  ===================================================== */
 
   const getInitials = (name) => {
     if (!name) return "CU";
@@ -41,14 +60,99 @@ const CustomerLayout = () => {
       .toUpperCase();
   };
 
+  /* =====================================================
+     CURRENT PAGE TITLE
+  ===================================================== */
+
+  const getPageTitle = () => {
+    const path = location.pathname;
+
+    if (path === "/customer/dashboard") {
+      return "Dashboard";
+    }
+
+    if (path === "/customer/products") {
+      return "Browse Products";
+    }
+
+    if (path === "/customer/orders") {
+      return "My Orders";
+    }
+
+    if (path === "/customer/cart") {
+      return "My Cart";
+    }
+
+    if (path === "/customer/invoices") {
+      return "Invoices";
+    }
+
+    if (path === "/customer/profile") {
+      return "My Profile";
+    }
+
+    return "Customer Portal";
+  };
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
+
   const handleLogout = () => {
     logout();
-    navigate("/login", { replace: true });
+    navigate("/login", {
+      replace: true,
+    });
+  };
+
+  /* =====================================================
+     MOBILE SIDEBAR
+  ===================================================== */
+
+  const openMobileSidebar = () => {
+    setMobileSidebarOpen(true);
   };
 
   const closeMobileSidebar = () => {
     setMobileSidebarOpen(false);
   };
+
+  /* =====================================================
+     NAVIGATION ITEM
+  ===================================================== */
+
+  const navigationItems = [
+    {
+      path: "/customer/dashboard",
+      label: "Dashboard",
+      icon: FaBoxOpen,
+    },
+    {
+      path: "/customer/products",
+      label: "Browse Products",
+      icon: FaIceCream,
+    },
+    {
+      path: "/customer/orders",
+      label: "My Orders",
+      icon: FaShoppingBag,
+    },
+    {
+      path: "/customer/cart",
+      label: "My Cart",
+      icon: FaCartPlus,
+    },
+    {
+      path: "/customer/invoices",
+      label: "Invoices",
+      icon: FaReceipt,
+    },
+    {
+      path: "/customer/profile",
+      label: "My Profile",
+      icon: FaUserCircle,
+    },
+  ];
 
   return (
     <div className="customer-layout">
@@ -72,11 +176,15 @@ const CustomerLayout = () => {
 
       <aside
         className={`customer-sidebar ${
-          mobileSidebarOpen ? "mobile-open" : ""
+          mobileSidebarOpen
+            ? "mobile-open"
+            : ""
         }`}
       >
 
-        {/* Brand */}
+        {/* =================================================
+            SIDEBAR BRAND
+        ================================================= */}
 
         <div className="customer-brand">
 
@@ -100,7 +208,9 @@ const CustomerLayout = () => {
 
         </div>
 
-        {/* Profile */}
+        {/* =================================================
+            CUSTOMER PROFILE CARD
+        ================================================= */}
 
         <div className="customer-sidebar-profile">
 
@@ -109,107 +219,96 @@ const CustomerLayout = () => {
           </div>
 
           <div className="customer-sidebar-profile-info">
-            <strong>{customerName}</strong>
-            <span>Customer</span>
+
+            <strong>
+              {customerName}
+            </strong>
+
+            <span>
+              Customer Account
+            </span>
+
+          </div>
+
+          <div className="customer-profile-status">
+            <span />
           </div>
 
         </div>
 
-        {/* Navigation */}
+        {/* =================================================
+            MENU TITLE
+        ================================================= */}
+
+        <div className="customer-navigation-heading">
+          <span>MAIN MENU</span>
+        </div>
+
+        {/* =================================================
+            NAVIGATION
+        ================================================= */}
 
         <nav className="customer-navigation">
 
-          <NavLink
-            to="/customer/dashboard"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaBoxOpen />
-            <span>Dashboard</span>
-          </NavLink>
+          {navigationItems.map(
+            ({
+              path,
+              label,
+              icon: Icon,
+            }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={closeMobileSidebar}
+                className={({ isActive }) =>
+                  `customer-nav-item ${
+                    isActive
+                      ? "active"
+                      : ""
+                  }`
+                }
+              >
 
-          <NavLink
-            to="/customer/products"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaIceCream />
-            <span>Browse Products</span>
-          </NavLink>
+                <span className="customer-nav-icon">
+                  <Icon />
+                </span>
 
-          <NavLink
-            to="/customer/orders"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaShoppingBag />
-            <span>My Orders</span>
-          </NavLink>
+                <span className="customer-nav-label">
+                  {label}
+                </span>
 
-          <NavLink
-            to="/customer/cart"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaCartPlus />
-            <span>My Cart</span>
-          </NavLink>
+                <span className="customer-nav-arrow">
+                  <FaChevronRight />
+                </span>
 
-          <NavLink
-            to="/customer/invoices"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaReceipt />
-            <span>Invoices</span>
-          </NavLink>
-
-          <NavLink
-            to="/customer/profile"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `customer-nav-item ${
-                isActive ? "active" : ""
-              }`
-            }
-          >
-            <FaUserCircle />
-            <span>My Profile</span>
-          </NavLink>
+              </NavLink>
+            )
+          )}
 
         </nav>
 
-        {/* Logout */}
+        {/* =================================================
+            SIDEBAR BOTTOM
+        ================================================= */}
 
         <div className="customer-sidebar-bottom">
+
+          <div className="customer-sidebar-divider" />
 
           <button
             type="button"
             className="customer-logout"
             onClick={handleLogout}
           >
-            <FaSignOutAlt />
-            <span>Logout</span>
+
+            <span className="customer-logout-icon">
+              <FaSignOutAlt />
+            </span>
+
+            <span>
+              Logout
+            </span>
+
           </button>
 
         </div>
@@ -223,51 +322,125 @@ const CustomerLayout = () => {
       <div className="customer-main">
 
         {/* =================================================
-            TOPBAR
+            TOP NAVBAR
         ================================================= */}
 
         <header className="customer-topbar">
 
+          {/* LEFT */}
+
           <div className="customer-topbar-left">
+
+            {/* Mobile Menu */}
 
             <button
               type="button"
               className="customer-mobile-menu"
-              onClick={() =>
-                setMobileSidebarOpen(true)
-              }
+              onClick={openMobileSidebar}
               aria-label="Open navigation"
             >
               <FaBars />
             </button>
 
+            {/* Mobile Brand */}
+
             <div className="customer-mobile-brand">
 
-              <div className="customer-brand-icon">
+              <div className="customer-mobile-brand-icon">
                 <FaIceCream />
               </div>
 
-              <div>
-                <strong>IceCream</strong>
-                <span>Parlour</span>
+              <div className="customer-mobile-brand-text">
+
+                <strong>
+                  IceCream
+                </strong>
+
+                <span>
+                  PARLOUR
+                </span>
+
               </div>
+
+            </div>
+
+            {/* Desktop Page Heading */}
+
+            <div className="customer-page-heading">
+
+              <span>
+                CUSTOMER PORTAL
+              </span>
+
+              <h1>
+                {getPageTitle()}
+              </h1>
 
             </div>
 
           </div>
 
-          {/* Profile */}
+          {/* =================================================
+              TOPBAR RIGHT
+          ================================================= */}
 
-          <div className="customer-topbar-profile">
+          <div className="customer-topbar-right">
 
-            <div className="customer-avatar">
-              {getInitials(customerName)}
+            {/* Welcome */}
+
+            <div className="customer-topbar-welcome">
+
+              <span>
+                Welcome back,
+              </span>
+
+              <strong>
+                {customerName}
+              </strong>
+
             </div>
 
-            <div className="customer-profile-info">
-              <strong>{customerName}</strong>
-              <span>Customer</span>
-            </div>
+            {/* Divider */}
+
+            <div className="customer-topbar-divider" />
+
+            {/* Profile */}
+
+            <button
+              type="button"
+              className="customer-topbar-profile"
+              onClick={() =>
+                navigate(
+                  "/customer/profile"
+                )
+              }
+            >
+
+              <div className="customer-avatar">
+
+                {getInitials(
+                  customerName
+                )}
+
+              </div>
+
+              <div className="customer-profile-info">
+
+                <strong>
+                  {customerName}
+                </strong>
+
+                <span>
+                  Customer
+                </span>
+
+              </div>
+
+              <FaChevronRight
+                className="customer-profile-chevron"
+              />
+
+            </button>
 
           </div>
 
