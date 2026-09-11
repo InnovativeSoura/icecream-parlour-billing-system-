@@ -2,6 +2,7 @@ import express from "express";
 
 import {
   createOrder,
+  createCustomerOrder,
   getOrders,
   getMyOrders,
   getOrderById,
@@ -15,25 +16,59 @@ import {
   authorize,
 } from "../middleware/authMiddleware.js";
 
-const router = express.Router();
+const router =
+  express.Router();
 
 /*
  * ============================================================
  * CUSTOMER ORDERS
  * ============================================================
- *
+ */
+
+/*
  * GET /api/orders/my-orders
  *
- * Customer only
+ * Customer only.
  *
- * IMPORTANT:
- * This route must appear before /:id.
+ * Returns only the authenticated customer's orders.
  */
+
 router.get(
   "/my-orders",
   protect,
   authorize("customer"),
   getMyOrders
+);
+
+/*
+ * ============================================================
+ * CUSTOMER CHECKOUT
+ * ============================================================
+ *
+ * POST /api/orders/customer
+ *
+ * Customer only.
+ *
+ * This is the endpoint used by MyCart.jsx.
+ *
+ * IMPORTANT:
+ *
+ * The frontend does NOT provide:
+ *
+ * - customer ID
+ * - price
+ * - subtotal
+ * - tax
+ * - total
+ *
+ * The backend calculates everything from MongoDB.
+ */
+
+router.post(
+  "/customer",
+  protect,
+  authorize("customer"),
+  createCustomerOrder
 );
 
 /*
@@ -45,10 +80,14 @@ router.get(
  *
  * Admin + Staff
  */
+
 router.get(
   "/stats/summary",
   protect,
-  authorize("admin", "staff"),
+  authorize(
+    "admin",
+    "staff"
+  ),
   getOrderStats
 );
 
@@ -57,26 +96,42 @@ router.get(
  * GET ALL ORDERS
  * ============================================================
  *
- * Admin + Staff
+ * GET /api/orders
+ *
+ * Admin + Staff only.
  */
+
 router.get(
   "/",
   protect,
-  authorize("admin", "staff"),
+  authorize(
+    "admin",
+    "staff"
+  ),
   getOrders
 );
 
 /*
  * ============================================================
- * CREATE ORDER
+ * CREATE POS ORDER
  * ============================================================
  *
- * Admin + Staff
+ * POST /api/orders
+ *
+ * Admin + Staff only.
+ *
+ * Customer checkout uses:
+ *
+ * POST /api/orders/customer
  */
+
 router.post(
   "/",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize(
+    "admin",
+    "staff"
+  ),
   createOrder
 );
 
@@ -85,12 +140,21 @@ router.post(
  * GET ORDER BY ID
  * ============================================================
  *
- * Admin + Staff
+ * GET /api/orders/:id
+ *
+ * Admin + Staff + Customer.
+ *
+ * Customer ownership is checked inside controller.
  */
+
 router.get(
   "/:id",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize(
+    "admin",
+    "staff",
+    "customer"
+  ),
   getOrderById
 );
 
@@ -98,11 +162,19 @@ router.get(
  * ============================================================
  * UPDATE ORDER STATUS
  * ============================================================
+ *
+ * PATCH /api/orders/:id/status
+ *
+ * Admin + Staff only.
  */
+
 router.patch(
   "/:id/status",
   protect,
-  authorize("admin", "staff", "customer"),
+  authorize(
+    "admin",
+    "staff"
+  ),
   updateOrderStatus
 );
 
@@ -110,11 +182,19 @@ router.patch(
  * ============================================================
  * CANCEL ORDER
  * ============================================================
+ *
+ * PATCH /api/orders/:id/cancel
+ *
+ * Admin + Staff only.
  */
+
 router.patch(
   "/:id/cancel",
   protect,
-  authorize("admin", "staff"),
+  authorize(
+    "admin",
+    "staff"
+  ),
   cancelOrder
 );
 

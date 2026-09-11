@@ -18,13 +18,13 @@ const roundMoney = (value) => {
  * ============================================================
  *
  * Customer authentication uses the authenticated User account.
- * The Customer collection may be linked either through:
+ *
+ * Customer can be linked through:
  *
  * 1. user -> req.user._id
  * 2. email -> req.user.email
- *
- * This helper supports both.
  */
+
 const resolveAuthenticatedCustomer = async (user) => {
   if (!user?._id) {
     return null;
@@ -33,7 +33,7 @@ const resolveAuthenticatedCustomer = async (user) => {
   let customer = null;
 
   /*
-   * First try a direct User -> Customer relationship.
+   * First try User -> Customer relationship.
    */
   try {
     customer = await Customer.findOne({
@@ -41,8 +41,8 @@ const resolveAuthenticatedCustomer = async (user) => {
     });
   } catch (error) {
     /*
-     * If the Customer schema does not contain a user field,
-     * simply continue to the email lookup.
+     * If the schema does not contain a user field,
+     * continue with email lookup.
      */
   }
 
@@ -160,6 +160,9 @@ const formatOrder = (order) => {
     paymentOrderId:
       order.paymentOrderId || "",
 
+    paymentSignature:
+      order.paymentSignature || "",
+
     status:
       order.status,
 
@@ -186,6 +189,244 @@ const formatOrder = (order) => {
 
     updatedAt:
       order.updatedAt,
+  };
+};
+
+/*
+ * ============================================================
+ * BUILD ORDER ITEMS
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * Prices, tax rates and totals are ALWAYS calculated from
+ * MongoDB Product documents.
+ *
+ * The frontend must never be trusted for:
+ *
+ * - price
+ * - subtotal
+ * - tax
+ * - total
+ */
+
+const buildOrderItems = async (items) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return {
+      error: "At least one product is required",
+    };
+  }
+
+  /*
+   * Limit the number of different products in one order.
+   */
+  if (items.length > 50) {
+    return {
+      error: "An order cannot contain more than 50 items",
+    };
+  }
+
+  const productIds = items.map(
+    (item) => item?.product
+  );
+
+  /*
+   * Validate product IDs.
+   */
+  for (const productId of productIds) {
+    if (!isValidObjectId(productId)) {
+      return {
+        error: `Invalid product ID: ${productId}`,
+      };
+    }
+  }
+
+  /*
+   * Remove duplicate product IDs for database query.
+   */
+  const uniqueProductIds = [
+    ...new Set(
+      productIds.map(
+        (id) => id.toString()
+      )
+    ),
+  ];
+
+  const products =
+    await Product.find({
+      _id: {
+        $in: uniqueProductIds,
+      },
+
+      isActive: true,
+    }).populate(
+      "category",
+      "name slug"
+    );
+
+  if (
+    products.length !==
+    uniqueProductIds.length
+  ) {
+    return {
+      error:
+        "One or more selected products are unavailable",
+    };
+  }
+
+  const productMap =
+    new Map();
+
+  products.forEach(
+    (product) => {
+      productMap.set(
+        product._id.toString(),
+        product
+      );
+    }
+  );
+
+  const orderItems = [];
+
+  let subtotal = 0;
+
+  let itemTaxAmount = 0;
+
+  /*
+   * Build every order item using server-side product data.
+   */
+  for (const item of items) {
+    const product =
+      productMap.get(
+        item.product.toString()
+      );
+
+    if (!product) {
+      return {
+        error:
+          "One or more products could not be found",
+      };
+    }
+
+    if (!product.isAvailable) {
+      return {
+        error:
+          `${product.name} is currently unavailable`,
+      };
+    }
+
+    const quantity =
+      Number(item.quantity);
+
+    /*
+     * Quantity must be a positive integer.
+     */
+    if (
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+      return {
+        error:
+          `Invalid quantity for ${product.name}`,
+      };
+    }
+
+    /*
+     * Prevent unreasonable quantities.
+     */
+    if (quantity > 100) {
+      return {
+        error:
+          `Maximum quantity for ${product.name} is 100`,
+      };
+    }
+
+    const unitPrice =
+      roundMoney(product.price);
+
+    if (unitPrice < 0) {
+      return {
+        error:
+          `Invalid price configured for ${product.name}`,
+      };
+    }
+
+    const lineSubtotal =
+      roundMoney(
+        unitPrice * quantity
+      );
+
+    const taxRate =
+      Number(product.taxRate) || 0;
+
+    if (
+      taxRate < 0 ||
+      taxRate > 100
+    ) {
+      return {
+        error:
+          `Invalid tax rate configured for ${product.name}`,
+      };
+    }
+
+    const lineTax =
+      roundMoney(
+        (lineSubtotal * taxRate) /
+          100
+      );
+
+    const lineTotal =
+      roundMoney(
+        lineSubtotal +
+          lineTax
+      );
+
+    subtotal +=
+      lineSubtotal;
+
+    itemTaxAmount +=
+      lineTax;
+
+    orderItems.push({
+      product:
+        product._id,
+
+      name:
+        product.name,
+
+      sku:
+        product.sku,
+
+      quantity,
+
+      unitPrice,
+
+      taxRate,
+
+      taxAmount:
+        lineTax,
+
+      discountAmount:
+        0,
+
+      subtotal:
+        lineSubtotal,
+
+      total:
+        lineTotal,
+    });
+  }
+
+  subtotal =
+    roundMoney(subtotal);
+
+  itemTaxAmount =
+    roundMoney(itemTaxAmount);
+
+  return {
+    orderItems,
+    subtotal,
+    itemTaxAmount,
   };
 };
 
@@ -262,6 +503,285 @@ export const getMyOrders = async (
 
 /*
  * ============================================================
+ * CREATE CUSTOMER ONLINE ORDER
+ * ============================================================
+ *
+ * POST /api/orders/customer
+ *
+ * Customer only.
+ *
+ * This endpoint is intentionally separate from:
+ *
+ * POST /api/orders
+ *
+ * The customer ID is NEVER accepted from the frontend.
+ *
+ * The customer is resolved from req.user.
+ */
+
+export const createCustomerOrder =
+  async (
+    req,
+    res
+  ) => {
+    try {
+      /*
+       * ========================================================
+       * CUSTOMER PROFILE
+       * ========================================================
+       */
+
+      const customerDocument =
+        await resolveAuthenticatedCustomer(
+          req.user
+        );
+
+      if (!customerDocument) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Customer profile not found",
+        });
+      }
+
+      if (
+        customerDocument.isActive ===
+        false
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Your customer account is inactive",
+        });
+      }
+
+      /*
+       * ========================================================
+       * REQUEST DATA
+       * ========================================================
+       *
+       * Customer checkout only accepts:
+       *
+       * items
+       * notes
+       *
+       * Price/tax/total/customer are NOT trusted.
+       */
+
+      const {
+        items,
+        notes = "",
+      } = req.body;
+
+      /*
+       * ========================================================
+       * BUILD ITEMS FROM DATABASE
+       * ========================================================
+       */
+
+      const itemResult =
+        await buildOrderItems(
+          items
+        );
+
+      if (itemResult.error) {
+        return res.status(400).json({
+          success: false,
+          message:
+            itemResult.error,
+        });
+      }
+
+      const {
+        orderItems,
+        subtotal,
+        itemTaxAmount,
+      } = itemResult;
+
+      /*
+       * ========================================================
+       * CUSTOMER ORDERS DO NOT ACCEPT FRONTEND DISCOUNTS
+       * ========================================================
+       *
+       * Discounts should be controlled by the backend/admin
+       * rather than trusted from the browser.
+       */
+
+      const discount = 0;
+
+      const finalTax =
+        roundMoney(
+          itemTaxAmount
+        );
+
+      const totalAmount =
+        roundMoney(
+          subtotal -
+            discount +
+            finalTax
+        );
+
+      if (totalAmount <= 0) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Order total must be greater than zero",
+        });
+      }
+
+      /*
+       * ========================================================
+       * GENERATE ORDER NUMBER
+       * ========================================================
+       */
+
+      const orderNumber =
+        await generateOrderNumber();
+
+      /*
+       * ========================================================
+       * CUSTOMER SNAPSHOT
+       * ========================================================
+       */
+
+      const customerSnapshot = {
+        name:
+          customerDocument.name,
+
+        phone:
+          customerDocument.phone,
+
+        email:
+          customerDocument.email,
+
+        address:
+          customerDocument.address,
+      };
+
+      /*
+       * ========================================================
+       * CREATE ONLINE ORDER
+       * ========================================================
+       *
+       * Payment starts as pending.
+       *
+       * Razorpay order/payment is created separately by
+       * /api/payments/razorpay/create-order.
+       */
+
+      const order =
+        await Order.create({
+          orderNumber,
+
+          customer:
+            customerDocument._id,
+
+          customerSnapshot,
+
+          items:
+            orderItems,
+
+          subtotal,
+
+          discountAmount:
+            discount,
+
+          taxAmount:
+            finalTax,
+
+          totalAmount,
+
+          paymentStatus:
+            "pending",
+
+          paymentMethod:
+            "razorpay",
+
+          status:
+            "pending",
+
+          orderType:
+            "online",
+
+          notes:
+            typeof notes ===
+            "string"
+              ? notes.trim()
+              : "",
+
+          createdBy:
+            req.user._id,
+        });
+
+      /*
+       * ========================================================
+       * POPULATE ORDER
+       * ========================================================
+       */
+
+      const populatedOrder =
+        await Order.findById(
+          order._id
+        )
+          .populate(
+            "customer",
+            "name phone email customerType isActive"
+          )
+          .populate(
+            "createdBy",
+            "name email role"
+          )
+          .populate(
+            "items.product",
+            "name image sku price taxRate unit"
+          );
+
+      return res.status(201).json({
+        success: true,
+
+        message:
+          "Online order created successfully",
+
+        order:
+          formatOrder(
+            populatedOrder
+          ),
+      });
+    } catch (error) {
+      console.error(
+        "Create customer order error:",
+        error
+      );
+
+      if (
+        error.name ===
+        "ValidationError"
+      ) {
+        const messages =
+          Object.values(
+            error.errors
+          ).map(
+            (item) =>
+              item.message
+          );
+
+        return res.status(400).json({
+          success: false,
+          message:
+            messages.join(", "),
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Unable to create online order",
+      });
+    }
+  };
+
+/*
+ * ============================================================
  * CREATE ORDER
  * ============================================================
  *
@@ -272,6 +792,15 @@ export const getMyOrders = async (
  *
  * Customer:
  *   Online orders
+ *
+ * NOTE:
+ *
+ * Customer checkout should preferably use:
+ *
+ * POST /api/orders/customer
+ *
+ * This function still supports customer requests for
+ * backwards compatibility.
  */
 
 export const createOrder = async (
@@ -309,21 +838,18 @@ export const createOrder = async (
      * ========================================================
      * CUSTOMER ORDER RULES
      * ========================================================
-     *
-     * Customer accounts are restricted to online orders.
-     *
-     * They cannot:
-     * - create POS orders
-     * - choose another customer's ID
-     * - create manual cash/card/UPI orders
      */
 
     let customerDocument = null;
 
     if (
-      req.user.role === "customer"
+      req.user.role ===
+      "customer"
     ) {
-      if (orderType !== "online") {
+      if (
+        orderType !==
+        "online"
+      ) {
         return res.status(400).json({
           success: false,
           message:
@@ -360,7 +886,8 @@ export const createOrder = async (
       }
 
       if (
-        !customerDocument.isActive
+        customerDocument.isActive ===
+        false
       ) {
         return res.status(400).json({
           success: false,
@@ -402,7 +929,8 @@ export const createOrder = async (
         }
 
         if (
-          !customerDocument.isActive
+          customerDocument.isActive ===
+          false
         ) {
           return res.status(400).json({
             success: false,
@@ -420,7 +948,10 @@ export const createOrder = async (
      */
 
     if (
-      !["pos", "online"].includes(
+      ![
+        "pos",
+        "online",
+      ].includes(
         orderType
       )
     ) {
@@ -464,203 +995,24 @@ export const createOrder = async (
      * ========================================================
      */
 
-    const productIds =
-      items.map(
-        (item) =>
-          item.product
+    const itemResult =
+      await buildOrderItems(
+        items
       );
 
-    for (
-      const productId of productIds
-    ) {
-      if (
-        !isValidObjectId(
-          productId
-        )
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            `Invalid product ID: ${productId}`,
-        });
-      }
-    }
-
-    const uniqueProductIds = [
-      ...new Set(
-        productIds.map(
-          (id) =>
-            id.toString()
-        )
-      ),
-    ];
-
-    const products =
-      await Product.find({
-        _id: {
-          $in:
-            uniqueProductIds,
-        },
-
-        isActive: true,
-      }).populate(
-        "category",
-        "name slug"
-      );
-
-    if (
-      products.length !==
-      uniqueProductIds.length
-    ) {
+    if (itemResult.error) {
       return res.status(400).json({
         success: false,
         message:
-          "One or more selected products are unavailable",
+          itemResult.error,
       });
     }
 
-    const productMap =
-      new Map();
-
-    products.forEach(
-      (product) => {
-        productMap.set(
-          product._id.toString(),
-          product
-        );
-      }
-    );
-
-    /*
-     * ========================================================
-     * BUILD ORDER ITEMS
-     * ========================================================
-     */
-
-    const orderItems = [];
-
-    let subtotal = 0;
-
-    let itemTaxAmount = 0;
-
-    for (
-      const item of items
-    ) {
-      const product =
-        productMap.get(
-          item.product.toString()
-        );
-
-      if (!product) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "One or more products could not be found",
-        });
-      }
-
-      if (
-        !product.isAvailable
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            `${product.name} is currently unavailable`,
-        });
-      }
-
-      const quantity =
-        Number(
-          item.quantity
-        );
-
-      if (
-        !Number.isFinite(
-          quantity
-        ) ||
-        quantity <= 0
-      ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            `Invalid quantity for ${product.name}`,
-        });
-      }
-
-      const unitPrice =
-        roundMoney(
-          product.price
-        );
-
-      const lineSubtotal =
-        roundMoney(
-          unitPrice *
-            quantity
-        );
-
-      const taxRate =
-        Number(
-          product.taxRate
-        ) || 0;
-
-      const lineTax =
-        roundMoney(
-          (lineSubtotal *
-            taxRate) /
-            100
-        );
-
-      const lineTotal =
-        roundMoney(
-          lineSubtotal +
-            lineTax
-        );
-
-      subtotal +=
-        lineSubtotal;
-
-      itemTaxAmount +=
-        lineTax;
-
-      orderItems.push({
-        product:
-          product._id,
-
-        name:
-          product.name,
-
-        sku:
-          product.sku,
-
-        quantity,
-
-        unitPrice,
-
-        taxRate,
-
-        taxAmount:
-          lineTax,
-
-        discountAmount:
-          0,
-
-        subtotal:
-          lineSubtotal,
-
-        total:
-          lineTotal,
-      });
-    }
-
-    subtotal =
-      roundMoney(
-        subtotal
-      );
-
-    itemTaxAmount =
-      roundMoney(
-        itemTaxAmount
-      );
+    const {
+      orderItems,
+      subtotal,
+      itemTaxAmount,
+    } = itemResult;
 
     /*
      * ========================================================
@@ -952,9 +1304,6 @@ export const getOrders = async (
      * ========================================================
      * CUSTOMER SECURITY
      * ========================================================
-     *
-     * Never allow the customer to choose the customer ID
-     * through a query parameter.
      */
 
     if (
@@ -1495,8 +1844,8 @@ export const cancelOrder =
         }
 
         /*
-         * Customers should only be able to cancel
-         * orders that have not entered processing.
+         * Customers can only cancel orders that have not
+         * entered processing.
          */
         if (
           ![
