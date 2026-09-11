@@ -22,8 +22,10 @@ const router = express.Router();
 |--------------------------------------------------------------------------
 |
 | IMPORTANT:
-| This route is mounted with express.raw() in server.js.
-| Do NOT add express.json() here.
+| server.js registers this endpoint with express.raw()
+| BEFORE express.json().
+|
+| Do NOT add express.json() to this route.
 |
 |--------------------------------------------------------------------------
 */
@@ -35,10 +37,21 @@ router.post(
 
 /*
 |--------------------------------------------------------------------------
-| Razorpay
+| Razorpay Customer / Online Payment
 |--------------------------------------------------------------------------
 */
 
+/*
+ * Create a Razorpay order
+ *
+ * POST:
+ * /api/payments/razorpay/create-order
+ *
+ * Allowed:
+ * - admin
+ * - staff
+ * - customer
+ */
 router.post(
   "/razorpay/create-order",
   protect,
@@ -50,6 +63,17 @@ router.post(
   createRazorpayOrder
 );
 
+/*
+ * Verify Razorpay payment
+ *
+ * POST:
+ * /api/payments/razorpay/verify
+ *
+ * Allowed:
+ * - admin
+ * - staff
+ * - customer
+ */
 router.post(
   "/razorpay/verify",
   protect,
@@ -66,7 +90,13 @@ router.post(
 | Manual POS Payments
 |--------------------------------------------------------------------------
 |
-| Cash / UPI / Card / Other
+| Payment methods:
+| - cash
+| - UPI
+| - card
+| - other
+|
+| Only admin and staff can record manual POS payments.
 |
 |--------------------------------------------------------------------------
 */
@@ -87,6 +117,20 @@ router.post(
 |--------------------------------------------------------------------------
 */
 
+/*
+ * Get payment associated with a specific order
+ *
+ * GET:
+ * /api/payments/order/:orderId
+ *
+ * Allowed:
+ * - admin
+ * - staff
+ * - customer
+ *
+ * Customer ownership must additionally be checked
+ * inside the controller.
+ */
 router.get(
   "/order/:orderId",
   protect,
@@ -98,6 +142,14 @@ router.get(
   getPaymentByOrder
 );
 
+/*
+ * Get all payments
+ *
+ * GET:
+ * /api/payments
+ *
+ * Only admin and staff.
+ */
 router.get(
   "/",
   protect,
@@ -107,5 +159,11 @@ router.get(
   ),
   getPayments
 );
+
+/*
+|--------------------------------------------------------------------------
+| Export
+|--------------------------------------------------------------------------
+*/
 
 export default router;
