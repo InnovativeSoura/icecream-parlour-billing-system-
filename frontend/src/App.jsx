@@ -14,7 +14,12 @@ import "react-toastify/dist/ReactToastify.css";
 // =====================================================
 
 import { useAuth } from "./context/AuthContext";
-import { CartProvider } from "./context/CartContext";
+
+// =====================================================
+// AUTH / ROUTE PROTECTION
+// =====================================================
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 // =====================================================
 // PUBLIC PAGES
@@ -157,7 +162,7 @@ const HomeRedirect = () => {
 
 const App = () => {
   return (
-    <CartProvider>
+    <>
       <Routes>
 
         {/* =================================================
@@ -249,9 +254,10 @@ const App = () => {
             CUSTOMER ROUTES
         =================================================
 
-            CustomerLayout is the parent layout.
+            ProtectedRoute checks that the logged-in user
+            has the customer role.
 
-            It provides:
+            CustomerLayout provides:
 
             - Premium sidebar
             - Premium top navbar
@@ -259,8 +265,11 @@ const App = () => {
             - Customer profile
             - Customer navigation
             - Logout
-            - <Outlet /> for child pages
+            - Outlet for all customer pages
 
+            IMPORTANT:
+            CustomerDashboard must NOT wrap itself with
+            CustomerLayout because this route already does it.
         ================================================= */}
 
         <Route
@@ -436,7 +445,7 @@ const App = () => {
         draggable
       />
 
-    </CartProvider>
+    </>
   );
 };
 
