@@ -1,14 +1,14 @@
 import express from "express";
 
 import {
-  createOrder,
-  createCustomerOrder,
-  getOrders,
   getMyOrders,
+  createCustomerOrder,
+  getOrderStats,
+  getOrders,
+  createOrder,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
-  getOrderStats,
 } from "../controllers/orderController.js";
 
 import {
@@ -16,23 +16,15 @@ import {
   authorize,
 } from "../middleware/authMiddleware.js";
 
-const router =
-  express.Router();
+const router = express.Router();
 
 /*
- * ============================================================
- * CUSTOMER ORDERS
- * ============================================================
- */
+|--------------------------------------------------------------------------
+| CUSTOMER ROUTES
+|--------------------------------------------------------------------------
+*/
 
-/*
- * GET /api/orders/my-orders
- *
- * Customer only.
- *
- * Returns only the authenticated customer's orders.
- */
-
+// Customer order history
 router.get(
   "/my-orders",
   protect,
@@ -40,30 +32,7 @@ router.get(
   getMyOrders
 );
 
-/*
- * ============================================================
- * CUSTOMER CHECKOUT
- * ============================================================
- *
- * POST /api/orders/customer
- *
- * Customer only.
- *
- * This is the endpoint used by MyCart.jsx.
- *
- * IMPORTANT:
- *
- * The frontend does NOT provide:
- *
- * - customer ID
- * - price
- * - subtotal
- * - tax
- * - total
- *
- * The backend calculates everything from MongoDB.
- */
-
+// Customer creates online order
 router.post(
   "/customer",
   protect,
@@ -71,123 +40,63 @@ router.post(
   createCustomerOrder
 );
 
-/*
- * ============================================================
- * ORDER STATISTICS
- * ============================================================
- *
- * GET /api/orders/stats/summary
- *
- * Admin + Staff
- */
 
+/*
+|--------------------------------------------------------------------------
+| ADMIN / STAFF ROUTES
+|--------------------------------------------------------------------------
+*/
+
+// Order statistics
 router.get(
   "/stats/summary",
   protect,
-  authorize(
-    "admin",
-    "staff"
-  ),
+  authorize("admin", "staff"),
   getOrderStats
 );
 
-/*
- * ============================================================
- * GET ALL ORDERS
- * ============================================================
- *
- * GET /api/orders
- *
- * Admin + Staff only.
- */
-
+// All orders
 router.get(
   "/",
   protect,
-  authorize(
-    "admin",
-    "staff"
-  ),
+  authorize("admin", "staff"),
   getOrders
 );
 
-/*
- * ============================================================
- * CREATE POS ORDER
- * ============================================================
- *
- * POST /api/orders
- *
- * Admin + Staff only.
- *
- * Customer checkout uses:
- *
- * POST /api/orders/customer
- */
-
+// Create POS order
 router.post(
   "/",
   protect,
-  authorize(
-    "admin",
-    "staff"
-  ),
+  authorize("admin", "staff"),
   createOrder
 );
 
-/*
- * ============================================================
- * GET ORDER BY ID
- * ============================================================
- *
- * GET /api/orders/:id
- *
- * Admin + Staff + Customer.
- *
- * Customer ownership is checked inside controller.
- */
 
+/*
+|--------------------------------------------------------------------------
+| SHARED ORDER ROUTES
+|--------------------------------------------------------------------------
+*/
+
+// Get individual order
 router.get(
   "/:id",
   protect,
-  authorize(
-    "admin",
-    "staff",
-    "customer"
-  ),
+  authorize("admin", "staff", "customer"),
   getOrderById
 );
 
-/*
- * ============================================================
- * UPDATE ORDER STATUS
- * ============================================================
- *
- * PATCH /api/orders/:id/status
- *
- * Admin + Staff only.
- */
-
+// Update order status
 router.patch(
   "/:id/status",
   protect,
-  authorize(
-    "admin",
-    "staff"
-  ),
+  authorize("admin", "staff"),
   updateOrderStatus
 );
 
-/*
- * ============================================================
- * CANCEL ORDER
- * ============================================================
- *
- * PATCH /api/orders/:id/cancel
- *
- * Admin + Staff only.
- */
-
+// Cancel order
+// Customer can cancel their own eligible order.
+// Admin/staff can cancel orders according to business rules.
 router.patch(
   "/:id/cancel",
   protect,
