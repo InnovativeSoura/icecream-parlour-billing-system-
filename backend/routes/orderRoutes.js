@@ -76,7 +76,7 @@ router.get(
 router.post(
   "/",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   createOrder
 );
 
@@ -90,7 +90,7 @@ router.post(
 router.get(
   "/:id",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   getOrderById
 );
 
@@ -102,7 +102,7 @@ router.get(
 router.patch(
   "/:id/status",
   protect,
-  authorize("admin", "staff"),
+  authorize("admin", "staff", "customer"),
   updateOrderStatus
 );
 

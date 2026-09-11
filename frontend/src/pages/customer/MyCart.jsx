@@ -1,36 +1,150 @@
-// frontend/src/pages/customer/MyCart.jsx
-
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "react-toastify";
+import {
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  FaShoppingCart,
+  AnimatePresence,
+  motion,
+} from "framer-motion";
+
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  toast,
+} from "react-toastify";
+
+import {
+  FaArrowRight,
+  FaBoxOpen,
+  FaCheckCircle,
+  FaCreditCard,
   FaMinus,
   FaPlus,
-  FaTrash,
-  FaArrowRight,
-  FaIceCream,
   FaReceipt,
+  FaRupeeSign,
   FaShieldAlt,
+  FaShoppingBag,
+  FaSpinner,
+  FaTrash,
   FaTimes,
+  FaWallet,
 } from "react-icons/fa";
 
 import { useCart } from "../../context/CartContext";
 
+import api from "../../api/api";
+
+import { loadRazorpay } from "../../utils/loadRazorpay";
+
 import "./MyCart.css";
 
-// =====================================================
-// MY CART
-// =====================================================
+
+/*
+|--------------------------------------------------------------------------
+| Animation Variants
+|--------------------------------------------------------------------------
+*/
+
+const pageVariants = {
+  hidden: {
+    opacity: 0,
+    y: 18,
+  },
+
+  visible: {
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      duration: 0.45,
+      ease: "easeOut",
+    },
+  },
+};
+
+
+const cardVariants = {
+  hidden: {
+    opacity: 0,
+    y: 16,
+  },
+
+  visible: {
+    opacity: 1,
+    y: 0,
+
+    transition: {
+      duration: 0.4,
+      ease: "easeOut",
+    },
+  },
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| Currency Formatter
+|--------------------------------------------------------------------------
+*/
+
+const formatCurrency = (
+  value
+) => {
+  const amount =
+    Number(value) || 0;
+
+  return amount.toLocaleString(
+    "en-IN",
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }
+  );
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| Product Price Helper
+|--------------------------------------------------------------------------
+|
+| Supports both:
+|
+| product.price
+| product.unitPrice
+|
+|--------------------------------------------------------------------------
+*/
+
+const getItemPrice = (
+  item
+) => {
+  return Number(
+    item?.price ??
+      item?.unitPrice ??
+      0
+  );
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| My Cart
+|--------------------------------------------------------------------------
+*/
 
 const MyCart = () => {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
-  // ===================================================
-  // CART CONTEXT
-  // ===================================================
+  /*
+  |--------------------------------------------------------------------------
+  | Cart Context
+  |--------------------------------------------------------------------------
+  */
 
   const {
     cartItems,
@@ -45,694 +159,1193 @@ const MyCart = () => {
     gstRate,
   } = useCart();
 
-  const [showClearModal, setShowClearModal] =
-    useState(false);
 
-  // ===================================================
-  // TOTALS
-  // ===================================================
+  /*
+  |--------------------------------------------------------------------------
+  | Local UI State
+  |--------------------------------------------------------------------------
+  */
 
-  const totals = useMemo(() => {
-    return {
-      subtotal: Number(subtotal || 0),
-      tax: Number(gst || 0),
-      grandTotal: Number(grandTotal || 0),
-      itemCount: Number(totalItems || 0),
-    };
-  }, [
-    subtotal,
-    gst,
-    grandTotal,
-    totalItems,
-  ]);
+  const [
+    showClearModal,
+    setShowClearModal,
+  ] = useState(false);
 
-  // ===================================================
-  // QUANTITY
-  // ===================================================
+  const [
+    checkoutLoading,
+    setCheckoutLoading,
+  ] = useState(false);
 
-  const updateQuantity = (item, change) => {
-    if (!item?._id) {
-      return;
-    }
 
-    const quantity = Math.max(
-      1,
-      Number(item.quantity || 1)
+  /*
+  |--------------------------------------------------------------------------
+  | Tax Percentage
+  |--------------------------------------------------------------------------
+  */
+
+  const gstPercentage =
+    Number(gstRate ?? 18);
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Cart Totals
+  |--------------------------------------------------------------------------
+  |
+  | These values are displayed to the customer.
+  |
+  | The backend independently recalculates the actual order total.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const totals = useMemo(
+    () => ({
+      subtotal:
+        Number(subtotal) || 0,
+
+      gst:
+        Number(gst) || 0,
+
+      grandTotal:
+        Number(grandTotal) || 0,
+    }),
+    [
+      subtotal,
+      gst,
+      grandTotal,
+    ]
+  );
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Empty Cart
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    !cartItems ||
+    cartItems.length === 0
+  ) {
+    return (
+      <motion.div
+        className="my-cart-page my-cart-empty-page"
+        variants={pageVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <div className="my-cart-empty-card">
+          <motion.div
+            className="my-cart-empty-icon"
+            initial={{
+              scale: 0.7,
+              opacity: 0,
+            }}
+            animate={{
+              scale: 1,
+              opacity: 1,
+            }}
+            transition={{
+              duration: 0.45,
+              ease: "backOut",
+            }}
+          >
+            <FaShoppingBag />
+          </motion.div>
+
+          <h1>
+            Your Cart Is Empty
+          </h1>
+
+          <p>
+            Looks like you haven't
+            added any delicious
+            treats yet.
+          </p>
+
+          <motion.button
+            type="button"
+            className="my-cart-primary-button"
+            whileHover={{
+              y: -2,
+              scale: 1.01,
+            }}
+            whileTap={{
+              scale: 0.98,
+            }}
+            onClick={() =>
+              navigate(
+                "/customer/products"
+              )
+            }
+          >
+            <FaIceCreamFallback />
+
+            Browse Products
+
+            <FaArrowRight />
+          </motion.button>
+        </div>
+      </motion.div>
+    );
+  }
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Remove Item
+  |--------------------------------------------------------------------------
+  */
+
+  const handleRemove = (
+    item
+  ) => {
+    removeFromCart(
+      item._id
     );
 
-    // Increase
-    if (change > 0) {
-      increaseQuantity(item._id);
-      return;
-    }
-
-    // If quantity is already 1,
-    // remove the item instead of going to 0.
-    if (quantity <= 1) {
-      removeItem(item);
-      return;
-    }
-
-    // Decrease
-    decreaseQuantity(item._id);
-  };
-
-  // ===================================================
-  // REMOVE ITEM
-  // ===================================================
-
-  const removeItem = (item) => {
-    if (!item?._id) {
-      return;
-    }
-
-    removeFromCart(item._id);
-
-    toast.info(
+    toast.success(
       `${item.name || "Item"} removed from cart`
     );
   };
 
-  // ===================================================
-  // CLEAR CART
-  // ===================================================
 
-  const handleClearCart = () => {
+  /*
+  |--------------------------------------------------------------------------
+  | Increase Quantity
+  |--------------------------------------------------------------------------
+  */
+
+  const handleIncrease = (
+    item
+  ) => {
+    increaseQuantity(
+      item._id
+    );
+  };
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Decrease Quantity
+  |--------------------------------------------------------------------------
+  */
+
+  const handleDecrease = (
+    item
+  ) => {
+    decreaseQuantity(
+      item._id
+    );
+  };
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Clear Cart
+  |--------------------------------------------------------------------------
+  */
+
+  const confirmClearCart = () => {
     clearCart();
 
-    setShowClearModal(false);
+    setShowClearModal(
+      false
+    );
 
     toast.success(
       "Cart cleared successfully"
     );
   };
 
-  // ===================================================
-  // CHECKOUT
-  // ===================================================
 
-  const handleCheckout = () => {
-    if (!cartItems.length) {
-      toast.warning(
-        "Your cart is empty"
+  /*
+  |--------------------------------------------------------------------------
+  | Customer Checkout
+  |--------------------------------------------------------------------------
+  |
+  | Flow:
+  |
+  | 1. Create internal order
+  | 2. Create Razorpay order
+  | 3. Load Razorpay Checkout
+  | 4. Open Razorpay
+  | 5. Receive payment response
+  | 6. Verify payment on backend
+  | 7. Clear cart
+  | 8. Redirect to orders
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const handleCheckout =
+    async () => {
+      if (
+        checkoutLoading
+      ) {
+        return;
+      }
+
+      if (
+        !cartItems ||
+        cartItems.length === 0
+      ) {
+        toast.warning(
+          "Your cart is empty"
+        );
+
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Validate cart products
+      |--------------------------------------------------------------------------
+      */
+
+      const invalidItem =
+        cartItems.find(
+          (item) =>
+            !item?._id ||
+            !Number.isFinite(
+              Number(
+                item.quantity
+              )
+            ) ||
+            Number(
+              item.quantity
+            ) <= 0
+        );
+
+      if (invalidItem) {
+        toast.error(
+          "One or more cart items are invalid. Please refresh your cart."
+        );
+
+        return;
+      }
+
+      setCheckoutLoading(
+        true
       );
 
-      return;
-    }
+      let createdOrderId =
+        null;
 
-    navigate("/customer/orders", {
-      state: {
-        checkout: true,
+      try {
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 1
+        |--------------------------------------------------------------------------
+        | Create the application's internal order.
+        |
+        | IMPORTANT:
+        | Do not send subtotal, GST or grandTotal as trusted values.
+        |
+        | The backend must fetch current product prices and calculate
+        | the actual amount.
+        |--------------------------------------------------------------------------
+        */
 
-        // Keep the existing state structure
-        // expected by the checkout page.
-        cart: cartItems,
+        const orderResponse =
+          await api.post(
+            "/orders/customer",
+            {
+              items:
+                cartItems.map(
+                  (item) => ({
+                    product:
+                      item._id,
 
-        totals,
-      },
-    });
-  };
+                    quantity:
+                      Number(
+                        item.quantity
+                      ),
+                  })
+                ),
 
-  // ===================================================
-  // FORMAT PRICE
-  // ===================================================
+              orderType:
+                "online",
 
-  const formatPrice = (value) => {
-    return `₹${Number(
-      value || 0
-    ).toFixed(2)}`;
-  };
-
-  // ===================================================
-  // GST LABEL
-  // ===================================================
-
-  const gstPercentage = Math.round(
-    Number(gstRate || 0) * 100
-  );
-
-  // ===================================================
-  // EMPTY CART
-  // ===================================================
-
-  if (!cartItems.length) {
-    return (
-      <div className="my-cart-page">
-
-        {/* Background */}
-
-        <div className="cart-background-orb cart-orb-one" />
-
-        <div className="cart-background-orb cart-orb-two" />
-
-        {/* Empty State */}
-
-        <motion.div
-          className="cart-empty-state"
-          initial={{
-            opacity: 0,
-            y: 25,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.5,
-          }}
-        >
-
-          <div className="empty-cart-icon">
-            <FaShoppingCart />
-          </div>
-
-          <span className="cart-eyebrow">
-            YOUR SELECTION
-          </span>
-
-          <h1>
-            Your Cart is Empty
-          </h1>
-
-          <p>
-            Looks like you haven't added
-            anything delicious yet.
-            Explore our menu and find
-            your favourite treats.
-          </p>
-
-          <motion.button
-            type="button"
-            className="cart-primary-button"
-            onClick={() =>
-              navigate(
-                "/customer/products"
-              )
+              paymentMethod:
+                "razorpay",
             }
-            whileHover={{
-              y: -2,
-            }}
-            whileTap={{
-              scale: 0.97,
-            }}
-          >
-            <FaIceCream />
+          );
 
-            <span>
-              Browse Products
-            </span>
+        /*
+        |--------------------------------------------------------------------------
+        | Extract internal order
+        |--------------------------------------------------------------------------
+        */
 
-            <FaArrowRight />
-          </motion.button>
+        const createdOrder =
+          orderResponse
+            ?.data
+            ?.data
+            ?.order ||
+          orderResponse
+            ?.data
+            ?.order ||
+          orderResponse
+            ?.data
+            ?.data;
 
-        </motion.div>
+        createdOrderId =
+          createdOrder?._id ||
+          createdOrder?.id ||
+          null;
 
-      </div>
-    );
-  }
+        if (
+          !createdOrderId
+        ) {
+          throw new Error(
+            "Unable to create the order"
+          );
+        }
 
-  // ===================================================
-  // MAIN CART
-  // ===================================================
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 2
+        |--------------------------------------------------------------------------
+        | Ask backend to create Razorpay order.
+        |--------------------------------------------------------------------------
+        */
+
+        const razorpayResponse =
+          await api.post(
+            "/payments/razorpay/create-order",
+            {
+              orderId:
+                createdOrderId,
+            }
+          );
+
+        const paymentData =
+          razorpayResponse
+            ?.data
+            ?.data;
+
+        if (
+          !paymentData
+        ) {
+          throw new Error(
+            "Unable to initialize Razorpay payment"
+          );
+        }
+
+        const {
+          paymentId,
+          orderId,
+          orderNumber,
+          razorpayOrderId,
+          keyId,
+          amount,
+          currency,
+          customer,
+        } = paymentData;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Razorpay response
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+          !paymentId ||
+          !orderId ||
+          !razorpayOrderId ||
+          !keyId ||
+          !amount
+        ) {
+          throw new Error(
+            "Incomplete Razorpay payment information"
+          );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 3
+        |--------------------------------------------------------------------------
+        | Load Razorpay Checkout SDK.
+        |--------------------------------------------------------------------------
+        */
+
+        const razorpayLoaded =
+          await loadRazorpay();
+
+        if (
+          !razorpayLoaded
+        ) {
+          throw new Error(
+            "Unable to load Razorpay Checkout. Please check your internet connection and try again."
+          );
+        }
+
+        if (
+          !window.Razorpay
+        ) {
+          throw new Error(
+            "Razorpay Checkout is unavailable"
+          );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 4
+        |--------------------------------------------------------------------------
+        | Configure Razorpay Checkout.
+        |--------------------------------------------------------------------------
+        */
+
+        const options = {
+          key:
+            keyId,
+
+          amount:
+            amount,
+
+          currency:
+            currency ||
+            "INR",
+
+          name:
+            "IceCream Parlour",
+
+          description:
+            orderNumber
+              ? `Payment for Order ${orderNumber}`
+              : "Ice Cream Order",
+
+          order_id:
+            razorpayOrderId,
+
+          /*
+          |--------------------------------------------------------------------------
+          | Customer prefill
+          |--------------------------------------------------------------------------
+          */
+
+          prefill: {
+            name:
+              customer?.name ||
+              "",
+
+            email:
+              customer?.email ||
+              "",
+
+            contact:
+              customer?.phone ||
+              "",
+          },
+
+          /*
+          |--------------------------------------------------------------------------
+          | Notes
+          |--------------------------------------------------------------------------
+          */
+
+          notes: {
+            orderId:
+              String(
+                orderId
+              ),
+
+            orderNumber:
+              String(
+                orderNumber ||
+                  ""
+              ),
+          },
+
+          /*
+          |--------------------------------------------------------------------------
+          | Theme
+          |--------------------------------------------------------------------------
+          */
+
+          theme: {
+            color:
+              "#7c3aed",
+          },
+
+          /*
+          |--------------------------------------------------------------------------
+          | Modal
+          |--------------------------------------------------------------------------
+          */
+
+          modal: {
+            escape:
+              true,
+
+            backdropclose:
+              false,
+
+            ondismiss:
+              () => {
+                setCheckoutLoading(
+                  false
+                );
+
+                toast.info(
+                  "Payment window closed"
+                );
+              },
+          },
+
+          /*
+          |--------------------------------------------------------------------------
+          | Payment Handler
+          |--------------------------------------------------------------------------
+          |
+          | Razorpay calls this only after Checkout returns a payment result.
+          |
+          |--------------------------------------------------------------------------
+          */
+
+          handler:
+            async (
+              response
+            ) => {
+              try {
+                /*
+                |--------------------------------------------------------------------------
+                | Validate Razorpay response
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                  !response
+                    ?.razorpay_payment_id ||
+                  !response
+                    ?.razorpay_order_id ||
+                  !response
+                    ?.razorpay_signature
+                ) {
+                  throw new Error(
+                    "Incomplete Razorpay payment response"
+                  );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | STEP 5
+                |--------------------------------------------------------------------------
+                | Verify payment on backend.
+                |--------------------------------------------------------------------------
+                */
+
+                const verifyResponse =
+                  await api.post(
+                    "/payments/razorpay/verify",
+                    {
+                      orderId:
+                        orderId,
+
+                      paymentId:
+                        paymentId,
+
+                      razorpay_order_id:
+                        response.razorpay_order_id,
+
+                      razorpay_payment_id:
+                        response.razorpay_payment_id,
+
+                      razorpay_signature:
+                        response.razorpay_signature,
+                    }
+                  );
+
+                const verification =
+                  verifyResponse
+                    ?.data;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Verify backend success.
+                |--------------------------------------------------------------------------
+                */
+
+                if (
+                  !verification?.success
+                ) {
+                  throw new Error(
+                    verification?.message ||
+                      "Payment verification failed"
+                  );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | STEP 6
+                |--------------------------------------------------------------------------
+                | Payment is now verified by backend.
+                |
+                | Only NOW should we clear the cart.
+                |--------------------------------------------------------------------------
+                */
+
+                clearCart();
+
+                toast.success(
+                  "Payment successful! Your order has been confirmed."
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | STEP 7
+                |--------------------------------------------------------------------------
+                | Navigate to My Orders.
+                |--------------------------------------------------------------------------
+                */
+
+                navigate(
+                  "/customer/orders",
+                  {
+                    replace:
+                      true,
+
+                    state: {
+                      paymentSuccess:
+                        true,
+
+                      orderId:
+                        orderId,
+
+                      orderNumber:
+                        orderNumber,
+                    },
+                  }
+                );
+              } catch (error) {
+                console.error(
+                  "Razorpay verification error:",
+                  error
+                );
+
+                const message =
+                  error
+                    ?.response
+                    ?.data
+                    ?.message ||
+                  error?.message ||
+                  "Payment verification failed";
+
+                toast.error(
+                  message
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | IMPORTANT
+                |--------------------------------------------------------------------------
+                |
+                | Do NOT clear the cart here.
+                |
+                | The payment may still be recoverable through the webhook.
+                |--------------------------------------------------------------------------
+                */
+              } finally {
+                setCheckoutLoading(
+                  false
+                );
+              }
+            },
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 4B
+        |--------------------------------------------------------------------------
+        | Create and open Razorpay Checkout.
+        |--------------------------------------------------------------------------
+        */
+
+        const razorpay =
+          new window.Razorpay(
+            options
+          );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment failure handler
+        |--------------------------------------------------------------------------
+        */
+
+        razorpay.on(
+          "payment.failed",
+          (
+            response
+          ) => {
+            console.error(
+              "Razorpay payment failed:",
+              response
+            );
+
+            const description =
+              response
+                ?.error
+                ?.description;
+
+            toast.error(
+              description ||
+                "Payment failed. Please try again."
+            );
+
+            setCheckoutLoading(
+              false
+            );
+          }
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Open Razorpay Checkout
+        |--------------------------------------------------------------------------
+        */
+
+        razorpay.open();
+      } catch (error) {
+        console.error(
+          "Checkout error:",
+          error
+        );
+
+        const message =
+          error
+            ?.response
+            ?.data
+            ?.message ||
+          error?.message ||
+          "Unable to start checkout";
+
+        /*
+        |--------------------------------------------------------------------------
+        | If an internal order was created but Razorpay initialization failed,
+        | don't clear the cart.
+        |--------------------------------------------------------------------------
+        */
+
+        toast.error(
+          message
+        );
+
+        setCheckoutLoading(
+          false
+        );
+      }
+    };
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Render
+  |--------------------------------------------------------------------------
+  */
 
   return (
-    <div className="my-cart-page">
+    <>
+      <motion.div
+        className="my-cart-page"
+        variants={pageVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/*
+        |--------------------------------------------------------------------------
+        | Page Header
+        |--------------------------------------------------------------------------
+        */}
 
-      {/* Background */}
-
-      <div className="cart-background-orb cart-orb-one" />
-
-      <div className="cart-background-orb cart-orb-two" />
-
-      <div className="my-cart-container">
-
-        {/* =========================================
-            HEADER
-        ========================================= */}
-
-        <motion.header
-          className="cart-page-header"
-          initial={{
-            opacity: 0,
-            y: -20,
-          }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{
-            duration: 0.45,
-          }}
-        >
-
-          {/* Header Left */}
-
-          <div className="cart-header-left">
-
-            <div className="cart-title-icon">
-              <FaShoppingCart />
+        <div className="my-cart-header">
+          <div>
+            <div className="my-cart-eyebrow">
+              <FaShoppingBag />
+              YOUR SHOPPING CART
             </div>
 
-            <div>
+            <h1>
+              My Cart
+            </h1>
 
-              <span className="cart-eyebrow">
-                YOUR SELECTION
-              </span>
-
-              <h1>
-                My Cart
-              </h1>
-
-              <p>
-                Review your delicious
-                selections before checkout.
-              </p>
-
-            </div>
-
+            <p>
+              Review your favourite
+              treats before checkout.
+            </p>
           </div>
 
-          {/* Header Actions */}
+          <div className="my-cart-item-badge">
+            <FaBoxOpen />
 
-          <div className="cart-header-actions">
+            <span>
+              {totalItems}
+            </span>
 
-            <div className="cart-item-count">
-
-              <FaShoppingCart />
-
-              <span>
-                {totals.itemCount}{" "}
-                {totals.itemCount === 1
-                  ? "Item"
-                  : "Items"}
-              </span>
-
-            </div>
-
-            <button
-              type="button"
-              className="clear-cart-button"
-              onClick={() =>
-                setShowClearModal(true)
-              }
-            >
-              <FaTrash />
-
-              <span>
-                Clear Cart
-              </span>
-            </button>
-
+            <small>
+              {totalItems === 1
+                ? "item"
+                : "items"}
+            </small>
           </div>
+        </div>
 
-        </motion.header>
 
-        {/* =========================================
-            CONTENT
-        ========================================= */}
+        {/*
+        |--------------------------------------------------------------------------
+        | Main Grid
+        |--------------------------------------------------------------------------
+        */}
 
-        <div className="cart-layout">
+        <div className="my-cart-layout">
 
-          {/* =======================================
-              CART ITEMS
-          ======================================= */}
+          {/*
+          |--------------------------------------------------------------------------
+          | Cart Items
+          |--------------------------------------------------------------------------
+          */}
 
-          <section className="cart-items-section">
-
-            {/* Section Heading */}
-
-            <div className="cart-section-heading">
-
+          <motion.section
+            className="my-cart-items-card"
+            variants={cardVariants}
+          >
+            <div className="my-cart-section-header">
               <div>
-
                 <h2>
                   Cart Items
                 </h2>
 
                 <span>
-                  {totals.itemCount}{" "}
-                  {totals.itemCount === 1
-                    ? "item"
-                    : "items"}{" "}
-                  selected
+                  {cartItems.length}{" "}
+                  {cartItems.length === 1
+                    ? "product"
+                    : "products"}
                 </span>
-
               </div>
 
               <button
                 type="button"
-                className="continue-shopping-button"
+                className="my-cart-clear-button"
                 onClick={() =>
-                  navigate(
-                    "/customer/products"
+                  setShowClearModal(
+                    true
                   )
                 }
+                disabled={
+                  checkoutLoading
+                }
               >
-                <span>
-                  Continue Shopping
-                </span>
-
-                <FaArrowRight />
+                <FaTrash />
+                Clear Cart
               </button>
-
             </div>
 
-            {/* Cart Items */}
 
-            <div className="cart-items-list">
+            <div className="my-cart-items-list">
+              <AnimatePresence>
+                {cartItems.map(
+                  (
+                    item,
+                    index
+                  ) => {
+                    const price =
+                      getItemPrice(
+                        item
+                      );
 
-              <AnimatePresence mode="popLayout">
+                    const quantity =
+                      Number(
+                        item.quantity
+                      ) || 1;
 
-                {cartItems.map((item) => {
+                    const itemTotal =
+                      price *
+                      quantity;
 
-                  // ---------------------------------
-                  // PRICE
-                  // ---------------------------------
+                    return (
+                      <motion.div
+                        key={
+                          item._id
+                        }
+                        className="my-cart-item"
+                        initial={{
+                          opacity: 0,
+                          y: 12,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        exit={{
+                          opacity: 0,
+                          x: -30,
+                        }}
+                        transition={{
+                          duration:
+                            0.3,
 
-                  const price = Number(
-                    item.price ??
-                    item.unitPrice ??
-                    0
-                  );
+                          delay:
+                            index *
+                            0.04,
+                        }}
+                        layout
+                      >
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Product Image
+                        |--------------------------------------------------------------------------
+                        */}
 
-                  // ---------------------------------
-                  // QUANTITY
-                  // ---------------------------------
+                        <div className="my-cart-product-image">
+                          {item.image ? (
+                            <img
+                              src={
+                                item.image
+                              }
+                              alt={
+                                item.name ||
+                                "Ice cream"
+                              }
+                              onError={(
+                                event
+                              ) => {
+                                event.currentTarget.style.display =
+                                  "none";
 
-                  const quantity = Math.max(
-                    1,
-                    Number(
-                      item.quantity || 1
-                    )
-                  );
+                                const fallback =
+                                  event
+                                    .currentTarget
+                                    .parentElement
+                                    ?.querySelector(
+                                      ".my-cart-image-fallback"
+                                    );
 
-                  // ---------------------------------
-                  // ITEM TOTAL
-                  // ---------------------------------
+                                if (
+                                  fallback
+                                ) {
+                                  fallback.style.display =
+                                    "flex";
+                                }
+                              }}
+                            />
+                          ) : null}
 
-                  const itemTotal =
-                    price * quantity;
-
-                  return (
-                    <motion.article
-                      className="cart-item-card"
-                      key={
-                        item._id ||
-                        item.id ||
-                        item.name
-                      }
-                      layout
-                      initial={{
-                        opacity: 0,
-                        y: 15,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      exit={{
-                        opacity: 0,
-                        x: -30,
-                        height: 0,
-                        marginBottom: 0,
-                      }}
-                      transition={{
-                        duration: 0.3,
-                      }}
-                    >
-
-                      {/* =================================
-                          PRODUCT IMAGE
-                      ================================= */}
-
-                      <div className="cart-product-image-wrapper">
-
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={
-                              item.name ||
-                              "Ice cream"
-                            }
-                            className="cart-product-image"
-                            onError={(
-                              event
-                            ) => {
-                              event.currentTarget.style.display =
-                                "none";
-
-                              event.currentTarget.parentElement.classList.add(
-                                "image-fallback"
-                              );
+                          <div
+                            className="my-cart-image-fallback"
+                            style={{
+                              display:
+                                item.image
+                                  ? "none"
+                                  : "flex",
                             }}
-                          />
-                        ) : (
-                          <div className="cart-product-image-placeholder">
-                            <FaIceCream />
+                          >
+                            <FaIceCreamFallback />
                           </div>
-                        )}
-
-                        <div className="cart-image-badge">
-                          <FaIceCream />
                         </div>
 
-                      </div>
 
-                      {/* =================================
-                          PRODUCT DETAILS
-                      ================================= */}
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Product Information
+                        |--------------------------------------------------------------------------
+                        */}
 
-                      <div className="cart-product-details">
-
-                        <div className="cart-product-main">
-
+                        <div className="my-cart-product-info">
                           <h3>
                             {item.name ||
                               "Ice Cream"}
                           </h3>
 
-                          {/* Category */}
-
-                          {item.category?.name && (
-                            <span className="cart-product-category">
-                              {
-                                item.category
-                                  .name
-                              }
+                          {item.category ? (
+                            <span className="my-cart-product-category">
+                              {typeof item.category ===
+                              "object"
+                                ? item
+                                    .category
+                                    ?.name
+                                : item.category}
                             </span>
-                          )}
+                          ) : null}
 
-                          {/* SKU */}
-
-                          {item.sku && (
-                            <span className="cart-product-sku">
+                          {item.sku ? (
+                            <span className="my-cart-product-sku">
                               SKU:{" "}
                               {item.sku}
                             </span>
-                          )}
+                          ) : null}
 
+                          <div className="my-cart-product-price-mobile">
+                            <FaRupeeSign />
+                            {formatCurrency(
+                              price
+                            )}
+                          </div>
                         </div>
 
-                        {/* Product Price */}
 
-                        <div className="cart-product-price">
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Unit Price
+                        |--------------------------------------------------------------------------
+                        */}
 
-                          {formatPrice(
-                            price
-                          )}
-
+                        <div className="my-cart-unit-price">
                           <span>
-                            / item
+                            Unit Price
                           </span>
 
+                          <strong>
+                            <FaRupeeSign />
+                            {formatCurrency(
+                              price
+                            )}
+                          </strong>
                         </div>
 
-                      </div>
 
-                      {/* =================================
-                          QUANTITY
-                      ================================= */}
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Quantity Controls
+                        |--------------------------------------------------------------------------
+                        */}
 
-                      <div className="cart-quantity-section">
-
-                        <span className="quantity-label">
-                          Quantity
-                        </span>
-
-                        <div className="quantity-control">
-
-                          <button
-                            type="button"
-                            aria-label={`Decrease quantity of ${
-                              item.name ||
-                              "item"
-                            }`}
-                            onClick={() =>
-                              updateQuantity(
-                                item,
-                                -1
-                              )
-                            }
-                          >
-                            <FaMinus />
-                          </button>
-
+                        <div className="my-cart-quantity">
                           <span>
-                            {quantity}
+                            Quantity
                           </span>
 
-                          <button
-                            type="button"
-                            aria-label={`Increase quantity of ${
-                              item.name ||
-                              "item"
-                            }`}
-                            onClick={() =>
-                              updateQuantity(
-                                item,
-                                1
-                              )
-                            }
-                          >
-                            <FaPlus />
-                          </button>
+                          <div className="my-cart-quantity-controls">
+                            <button
+                              type="button"
+                              aria-label={`Decrease ${item.name || "product"} quantity`}
+                              onClick={() =>
+                                handleDecrease(
+                                  item
+                                )
+                              }
+                              disabled={
+                                checkoutLoading ||
+                                quantity <=
+                                  1
+                              }
+                            >
+                              <FaMinus />
+                            </button>
 
+                            <strong>
+                              {quantity}
+                            </strong>
+
+                            <button
+                              type="button"
+                              aria-label={`Increase ${item.name || "product"} quantity`}
+                              onClick={() =>
+                                handleIncrease(
+                                  item
+                                )
+                              }
+                              disabled={
+                                checkoutLoading
+                              }
+                            >
+                              <FaPlus />
+                            </button>
+                          </div>
                         </div>
 
-                      </div>
 
-                      {/* =================================
-                          ITEM TOTAL
-                      ================================= */}
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Item Total
+                        |--------------------------------------------------------------------------
+                        */}
 
-                      <div className="cart-item-total">
+                        <div className="my-cart-item-total">
+                          <span>
+                            Total
+                          </span>
 
-                        <span>
-                          Total
-                        </span>
+                          <strong>
+                            <FaRupeeSign />
+                            {formatCurrency(
+                              itemTotal
+                            )}
+                          </strong>
+                        </div>
 
-                        <strong>
-                          {formatPrice(
-                            itemTotal
-                          )}
-                        </strong>
 
-                      </div>
+                        {/*
+                        |--------------------------------------------------------------------------
+                        | Remove
+                        |--------------------------------------------------------------------------
+                        */}
 
-                      {/* =================================
-                          REMOVE
-                      ================================= */}
-
-                      <button
-                        type="button"
-                        className="remove-cart-item"
-                        aria-label={`Remove ${
-                          item.name ||
-                          "item"
-                        }`}
-                        onClick={() =>
-                          removeItem(item)
-                        }
-                      >
-                        <FaTrash />
-                      </button>
-
-                    </motion.article>
-                  );
-                })}
-
+                        <button
+                          type="button"
+                          className="my-cart-remove-button"
+                          aria-label={`Remove ${item.name || "product"} from cart`}
+                          onClick={() =>
+                            handleRemove(
+                              item
+                            )
+                          }
+                          disabled={
+                            checkoutLoading
+                          }
+                        >
+                          <FaTimes />
+                        </button>
+                      </motion.div>
+                    );
+                  }
+                )}
               </AnimatePresence>
-
             </div>
 
-            {/* =====================================
-                TRUST STRIP
-            ===================================== */}
 
-            <div className="cart-trust-strip">
+            {/*
+            |--------------------------------------------------------------------------
+            | Continue Shopping
+            |--------------------------------------------------------------------------
+            */}
 
-              {/* Secure Checkout */}
+            <div className="my-cart-continue">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(
+                    "/customer/products"
+                  )
+                }
+                disabled={
+                  checkoutLoading
+                }
+              >
+                <FaArrowRight />
 
-              <div className="cart-trust-item">
-
-                <div className="trust-icon">
-                  <FaShieldAlt />
-                </div>
-
-                <div>
-
-                  <strong>
-                    Secure Checkout
-                  </strong>
-
-                  <span>
-                    Your payment is protected
-                  </span>
-
-                </div>
-
-              </div>
-
-              {/* Digital Invoice */}
-
-              <div className="cart-trust-item">
-
-                <div className="trust-icon">
-                  <FaReceipt />
-                </div>
-
-                <div>
-
-                  <strong>
-                    Digital Invoice
-                  </strong>
-
-                  <span>
-                    Available after purchase
-                  </span>
-
-                </div>
-
-              </div>
-
-              {/* Freshly Prepared */}
-
-              <div className="cart-trust-item">
-
-                <div className="trust-icon">
-                  <FaIceCream />
-                </div>
-
-                <div>
-
-                  <strong>
-                    Freshly Prepared
-                  </strong>
-
-                  <span>
-                    Made with quality ingredients
-                  </span>
-
-                </div>
-
-              </div>
-
+                Continue Shopping
+              </button>
             </div>
+          </motion.section>
 
-          </section>
 
-          {/* =======================================
-              ORDER SUMMARY
-          ======================================= */}
+          {/*
+          |--------------------------------------------------------------------------
+          | Order Summary
+          |--------------------------------------------------------------------------
+          */}
 
-          <aside className="cart-summary-card">
-
-            {/* Summary Header */}
-
-            <div className="summary-card-header">
+          <motion.aside
+            className="my-cart-summary-card"
+            variants={cardVariants}
+          >
+            <div className="my-cart-summary-top">
+              <div className="my-cart-summary-icon">
+                <FaReceipt />
+              </div>
 
               <div>
-
                 <span>
                   ORDER SUMMARY
                 </span>
@@ -740,162 +1353,209 @@ const MyCart = () => {
                 <h2>
                   Checkout
                 </h2>
-
               </div>
-
-              <div className="summary-icon">
-                <FaReceipt />
-              </div>
-
             </div>
 
-            {/* =====================================
-                SUMMARY ITEMS
-            ===================================== */}
 
-            <div className="summary-items">
+            {/*
+            |--------------------------------------------------------------------------
+            | Summary Rows
+            |--------------------------------------------------------------------------
+            */}
 
-              {/* Subtotal */}
+            <div className="my-cart-summary-lines">
+              <div className="my-cart-summary-row">
+                <span>
+                  Items
+                </span>
 
-              <div className="summary-row">
+                <strong>
+                  {totalItems}
+                </strong>
+              </div>
 
+              <div className="my-cart-summary-row">
                 <span>
                   Subtotal
                 </span>
 
                 <strong>
-                  {formatPrice(
+                  <FaRupeeSign />
+                  {formatCurrency(
                     totals.subtotal
                   )}
                 </strong>
-
               </div>
 
-              {/* GST */}
-
-              <div className="summary-row">
-
+              <div className="my-cart-summary-row">
                 <span>
                   GST{" "}
                   <small>
-                    {gstPercentage}%
+                    ({gstPercentage}%)
                   </small>
                 </span>
 
                 <strong>
-                  {formatPrice(
-                    totals.tax
+                  <FaRupeeSign />
+                  {formatCurrency(
+                    totals.gst
                   )}
                 </strong>
-
               </div>
-
-              <div className="summary-divider" />
-
-              {/* Grand Total */}
-
-              <div className="summary-total-row">
-
-                <div>
-
-                  <span>
-                    Total Amount
-                  </span>
-
-                  <small>
-                    Inclusive of applicable tax
-                  </small>
-
-                </div>
-
-                <strong>
-                  {formatPrice(
-                    totals.grandTotal
-                  )}
-                </strong>
-
-              </div>
-
             </div>
 
-            {/* =====================================
-                CHECKOUT BUTTON
-            ===================================== */}
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Divider
+            |--------------------------------------------------------------------------
+            */}
+
+            <div className="my-cart-summary-divider" />
+
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Grand Total
+            |--------------------------------------------------------------------------
+            */}
+
+            <div className="my-cart-grand-total">
+              <span>
+                Total Payable
+              </span>
+
+              <strong>
+                <FaRupeeSign />
+                {formatCurrency(
+                  totals.grandTotal
+                )}
+              </strong>
+            </div>
+
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Checkout Button
+            |--------------------------------------------------------------------------
+            */}
 
             <motion.button
               type="button"
-              className="checkout-button"
-              onClick={handleCheckout}
-              whileHover={{
-                y: -2,
-              }}
-              whileTap={{
-                scale: 0.98,
-              }}
-            >
-
-              <span>
-                Proceed to Checkout
-              </span>
-
-              <div className="checkout-arrow">
-                <FaArrowRight />
-              </div>
-
-            </motion.button>
-
-            {/* =====================================
-                SECURE PAYMENT NOTE
-            ===================================== */}
-
-            <div className="secure-payment-note">
-
-              <FaShieldAlt />
-
-              <span>
-                Secure payments powered
-                by Razorpay
-              </span>
-
-            </div>
-
-            {/* =====================================
-                ADD MORE ITEMS
-            ===================================== */}
-
-            <button
-              type="button"
-              className="summary-browse-button"
-              onClick={() =>
-                navigate(
-                  "/customer/products"
-                )
+              className="my-cart-checkout-button"
+              onClick={
+                handleCheckout
+              }
+              disabled={
+                checkoutLoading ||
+                !cartItems.length
+              }
+              whileHover={
+                checkoutLoading
+                  ? {}
+                  : {
+                      y: -2,
+                    }
+              }
+              whileTap={
+                checkoutLoading
+                  ? {}
+                  : {
+                      scale: 0.98,
+                    }
               }
             >
+              {checkoutLoading ? (
+                <>
+                  <FaSpinner className="my-cart-spinner" />
 
-              <FaIceCream />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FaCreditCard />
 
+                  Proceed to Checkout
+
+                  <FaArrowRight />
+                </>
+              )}
+            </motion.button>
+
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Razorpay Security
+            |--------------------------------------------------------------------------
+            */}
+
+            <div className="my-cart-security">
+              <div className="my-cart-security-icon">
+                <FaShieldAlt />
+              </div>
+
+              <div>
+                <strong>
+                  Secure Payment
+                </strong>
+
+                <span>
+                  Payments are securely
+                  processed by Razorpay.
+                </span>
+              </div>
+            </div>
+
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Payment Methods
+            |--------------------------------------------------------------------------
+            */}
+
+            <div className="my-cart-payment-methods">
               <span>
-                Add More Items
+                Accepted Payment Methods
               </span>
 
-            </button>
+              <div>
+                <div
+                  className="my-cart-payment-method"
+                  title="UPI"
+                >
+                  UPI
+                </div>
 
-          </aside>
+                <div
+                  className="my-cart-payment-method"
+                  title="Cards"
+                >
+                  <FaCreditCard />
+                </div>
 
+                <div
+                  className="my-cart-payment-method"
+                  title="Wallets"
+                >
+                  <FaWallet />
+                </div>
+              </div>
+            </div>
+          </motion.aside>
         </div>
+      </motion.div>
 
-      </div>
 
-      {/* =========================================
-          CLEAR CART MODAL
-      ========================================= */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Clear Cart Modal
+      |--------------------------------------------------------------------------
+      */}
 
       <AnimatePresence>
-
         {showClearModal && (
           <motion.div
-            className="cart-modal-overlay"
+            className="my-cart-modal-overlay"
             initial={{
               opacity: 0,
             }}
@@ -906,16 +1566,17 @@ const MyCart = () => {
               opacity: 0,
             }}
             onClick={() =>
-              setShowClearModal(false)
+              setShowClearModal(
+                false
+              )
             }
           >
-
             <motion.div
-              className="clear-cart-modal"
+              className="my-cart-confirm-modal"
               initial={{
                 opacity: 0,
                 scale: 0.92,
-                y: 15,
+                y: 20,
               }}
               animate={{
                 opacity: 1,
@@ -925,57 +1586,39 @@ const MyCart = () => {
               exit={{
                 opacity: 0,
                 scale: 0.92,
-                y: 15,
+                y: 20,
               }}
               transition={{
                 duration: 0.25,
               }}
-              onClick={(event) =>
+              onClick={(
+                event
+              ) =>
                 event.stopPropagation()
               }
             >
-
-              {/* Close */}
-
-              <button
-                type="button"
-                className="modal-close-button"
-                onClick={() =>
-                  setShowClearModal(false)
-                }
-                aria-label="Close"
-              >
-                <FaTimes />
-              </button>
-
-              {/* Warning Icon */}
-
-              <div className="modal-warning-icon">
+              <div className="my-cart-modal-icon">
                 <FaTrash />
               </div>
 
               <h2>
-                Clear your cart?
+                Clear Cart?
               </h2>
 
               <p>
-                This will remove all{" "}
-                {totals.itemCount}{" "}
-                {totals.itemCount === 1
-                  ? "item"
-                  : "items"}{" "}
-                from your cart.
+                Are you sure you want
+                to remove all items from
+                your cart?
               </p>
 
-              {/* Modal Actions */}
-
-              <div className="modal-actions">
-
+              <div className="my-cart-modal-actions">
                 <button
                   type="button"
-                  className="modal-cancel-button"
+                  className="my-cart-modal-cancel"
                   onClick={() =>
-                    setShowClearModal(false)
+                    setShowClearModal(
+                      false
+                    )
                   }
                 >
                   Keep Items
@@ -983,29 +1626,51 @@ const MyCart = () => {
 
                 <button
                   type="button"
-                  className="modal-confirm-button"
+                  className="my-cart-modal-confirm"
                   onClick={
-                    handleClearCart
+                    confirmClearCart
                   }
                 >
                   <FaTrash />
 
-                  <span>
-                    Clear Cart
-                  </span>
+                  Clear Cart
                 </button>
-
               </div>
-
             </motion.div>
-
           </motion.div>
         )}
-
       </AnimatePresence>
-
-    </div>
+    </>
   );
 };
+
+
+/*
+|--------------------------------------------------------------------------
+| Small Ice Cream Fallback
+|--------------------------------------------------------------------------
+|
+| Kept local so this file does not depend on a potentially unavailable
+| FontAwesome ice-cream icon export.
+|
+|--------------------------------------------------------------------------
+*/
+
+const FaIceCreamFallback = () => {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        fontSize:
+          "1.05em",
+
+        lineHeight: 1,
+      }}
+    >
+      🍦
+    </span>
+  );
+};
+
 
 export default MyCart;
