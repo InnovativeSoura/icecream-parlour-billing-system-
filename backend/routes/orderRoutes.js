@@ -1,3 +1,5 @@
+// backend/routes/orderRoutes.js
+
 import express from "express";
 
 import {
@@ -87,6 +89,7 @@ router.get(
 );
 
 // Update order status
+// Admin / Staff only
 router.patch(
   "/:id/status",
   protect,
@@ -95,8 +98,9 @@ router.patch(
 );
 
 // Cancel order
-// Customer can cancel their own eligible order.
-// Admin/staff can cancel orders according to business rules.
+// Admin / Staff / Customer
+// Customer ownership and cancellation rules
+// are enforced inside cancelOrder.
 router.patch(
   "/:id/cancel",
   protect,
