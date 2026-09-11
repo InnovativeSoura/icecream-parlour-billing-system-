@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 import {
   FaSearch,
@@ -16,21 +17,39 @@ import {
   FaCheck,
 } from "react-icons/fa";
 
-import { useNavigate } from "react-router-dom";
 import api from "../api/api";
+import { useCart } from "../context/CartContext";
 
 import "./CustomerProducts.css";
 
-const CART_STORAGE_KEY = "icecream_customer_cart";
-
 const CustomerProducts = () => {
   const navigate = useNavigate();
+
+  // =====================================================
+  // CART CONTEXT
+  // =====================================================
+
+  const {
+    cartItems,
+    addToCart,
+    increaseQuantity,
+    decreaseQuantity,
+    totalItems,
+    subtotal,
+    gst,
+    grandTotal,
+  } = useCart();
+
+  // =====================================================
+  // PRODUCTS / CATEGORIES
+  // =====================================================
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [categoryLoading, setCategoryLoading] = useState(true);
+  const [categoryLoading, setCategoryLoading] =
+    useState(true);
 
   const [error, setError] = useState("");
 
@@ -38,40 +57,14 @@ const CustomerProducts = () => {
   const [selectedCategory, setSelectedCategory] =
     useState("all");
 
-  const [cart, setCart] = useState(() => {
-    try {
-      const savedCart =
-        localStorage.getItem(CART_STORAGE_KEY);
-
-      return savedCart
-        ? JSON.parse(savedCart)
-        : [];
-    } catch {
-      return [];
-    }
-  });
-
-  /*
-   * ============================================================
-   * FETCH PRODUCTS
-   * ============================================================
-   */
+  // =====================================================
+  // FETCH PRODUCTS + CATEGORIES
+  // =====================================================
 
   useEffect(() => {
     fetchProducts();
     fetchCategories();
   }, []);
-
-  /*
-   * Persist cart
-   */
-
-  useEffect(() => {
-    localStorage.setItem(
-      CART_STORAGE_KEY,
-      JSON.stringify(cart)
-    );
-  }, [cart]);
 
   const fetchProducts = async () => {
     try {
@@ -129,11 +122,9 @@ const CustomerProducts = () => {
     }
   };
 
-  /*
-   * ============================================================
-   * FILTER PRODUCTS
-   * ============================================================
-   */
+  // =====================================================
+  // FILTER PRODUCTS
+  // =====================================================
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch =
@@ -172,58 +163,33 @@ const CustomerProducts = () => {
     selectedCategory,
   ]);
 
-  /*
-   * ============================================================
-   * CART HELPERS
-   * ============================================================
-   */
+  // =====================================================
+  // CART HELPERS
+  // =====================================================
 
   const getCartQuantity = (productId) => {
-    const item = cart.find(
+    const item = cartItems.find(
       (cartItem) =>
-        cartItem.product === productId
+        String(cartItem?._id) ===
+        String(productId)
     );
 
-    return item?.quantity || 0;
+    return Number(item?.quantity || 0);
   };
 
-  const addToCart = (product) => {
-    setCart((previousCart) => {
-      const existingIndex =
-        previousCart.findIndex(
-          (item) =>
-            item.product === product._id
-        );
+  // =====================================================
+  // ADD TO CART
+  // =====================================================
 
-      if (existingIndex !== -1) {
-        return previousCart.map(
-          (item, index) =>
-            index === existingIndex
-              ? {
-                  ...item,
-                  quantity:
-                    item.quantity + 1,
-                }
-              : item
-        );
-      }
+  const handleAddToCart = (product) => {
+    if (!product?._id) {
+      toast.error(
+        "Unable to add this product to cart"
+      );
+      return;
+    }
 
-      return [
-        ...previousCart,
-        {
-          product: product._id,
-          name: product.name,
-          sku: product.sku,
-          image: product.image || "",
-          price: Number(product.price) || 0,
-          taxRate:
-            Number(product.taxRate) || 0,
-          unit:
-            product.unit || "piece",
-          quantity: 1,
-        },
-      ];
-    });
+    addToCart(product);
 
     toast.success(
       `${product.name} added to cart`,
@@ -233,95 +199,45 @@ const CustomerProducts = () => {
     );
   };
 
-  const increaseQuantity = (productId) => {
-    setCart((previousCart) =>
-      previousCart.map((item) =>
-        item.product === productId
-          ? {
-              ...item,
-              quantity:
-                item.quantity + 1,
-            }
-          : item
-      )
-    );
+  // =====================================================
+  // INCREASE QUANTITY
+  // =====================================================
+
+  const handleIncreaseQuantity = (
+    productId
+  ) => {
+    increaseQuantity(productId);
   };
 
-  const decreaseQuantity = (productId) => {
-    setCart((previousCart) =>
-      previousCart
-        .map((item) =>
-          item.product === productId
-            ? {
-                ...item,
-                quantity:
-                  item.quantity - 1,
-              }
-            : item
-        )
-        .filter(
-          (item) => item.quantity > 0
-        )
-    );
+  // =====================================================
+  // DECREASE QUANTITY
+  // =====================================================
+
+  const handleDecreaseQuantity = (
+    productId
+  ) => {
+    decreaseQuantity(productId);
   };
 
-  /*
-   * ============================================================
-   * CART TOTALS
-   * ============================================================
-   */
+  // =====================================================
+  // CART TOTALS
+  // =====================================================
 
-  const cartCount = useMemo(
-    () =>
-      cart.reduce(
-        (total, item) =>
-          total +
-          Number(item.quantity || 0),
-        0
-      ),
-    [cart]
+  const cartCount = Number(totalItems || 0);
+
+  const cartSubtotal = Number(
+    subtotal || 0
   );
 
-  const cartSubtotal = useMemo(
-    () =>
-      cart.reduce(
-        (total, item) =>
-          total +
-          Number(item.price || 0) *
-            Number(item.quantity || 0),
-        0
-      ),
-    [cart]
+  const cartTax = Number(gst || 0);
+
+  const cartTotal = Number(
+    grandTotal || 0
   );
 
-  const cartTax = useMemo(
-    () =>
-      cart.reduce(
-        (total, item) => {
-          const lineSubtotal =
-            Number(item.price || 0) *
-            Number(item.quantity || 0);
-
-          const tax =
-            (lineSubtotal *
-              Number(item.taxRate || 0)) /
-            100;
-
-          return total + tax;
-        },
-        0
-      ),
-    [cart]
-  );
-
-  const cartTotal =
-    cartSubtotal + cartTax;
-
-  /*
-   * ============================================================
-   * NAVIGATION
-   * ============================================================
-   */
+  // =====================================================
+  // NAVIGATION
+  // =====================================================
 
   const goToCart = () => {
     navigate("/customer/cart");
@@ -332,35 +248,18 @@ const CustomerProducts = () => {
     setSelectedCategory("all");
   };
 
-  /*
-   * ============================================================
-   * IMAGE FALLBACK
-   * ============================================================
-   */
-
-  const getInitials = (name = "") => {
-    return name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase();
-  };
-
-  /*
-   * ============================================================
-   * RENDER
-   * ============================================================
-   */
+  // =====================================================
+  // RENDER
+  // =====================================================
 
   return (
     <div className="customer-products-page">
+
       <div className="customer-products-container">
 
-        {/* =====================================================
+        {/* =================================================
             HEADER
-        ====================================================== */}
+        ================================================= */}
 
         <motion.div
           className="customer-products-header"
@@ -376,7 +275,9 @@ const CustomerProducts = () => {
             duration: 0.45,
           }}
         >
+
           <div>
+
             <span className="customer-products-eyebrow">
               OUR MENU
             </span>
@@ -390,9 +291,13 @@ const CustomerProducts = () => {
               of ice creams, desserts,
               beverages and more.
             </p>
+
           </div>
 
+          {/* CART SUMMARY */}
+
           <motion.button
+            type="button"
             className="customer-cart-summary"
             onClick={goToCart}
             whileHover={{
@@ -402,11 +307,13 @@ const CustomerProducts = () => {
               scale: 0.97,
             }}
           >
+
             <div className="customer-cart-summary-icon">
               <FaShoppingCart />
             </div>
 
             <div className="customer-cart-summary-content">
+
               <span>
                 {cartCount}{" "}
                 {cartCount === 1
@@ -415,20 +322,22 @@ const CustomerProducts = () => {
               </span>
 
               <strong>
-                ₹
-                {cartTotal.toFixed(2)}
+                ₹{cartTotal.toFixed(2)}
               </strong>
+
             </div>
 
             <div className="customer-cart-summary-arrow">
               <FaArrowRight />
             </div>
+
           </motion.button>
+
         </motion.div>
 
-        {/* =====================================================
+        {/* =================================================
             FILTER BAR
-        ====================================================== */}
+        ================================================= */}
 
         <motion.div
           className="customer-product-filters"
@@ -445,7 +354,11 @@ const CustomerProducts = () => {
             duration: 0.4,
           }}
         >
+
+          {/* SEARCH */}
+
           <div className="customer-product-search">
+
             <FaSearch />
 
             <input
@@ -464,13 +377,18 @@ const CustomerProducts = () => {
                   setSearch("")
                 }
                 className="customer-search-clear"
+                aria-label="Clear search"
               >
                 <FaTimes />
               </button>
             )}
+
           </div>
 
+          {/* CATEGORY */}
+
           <div className="customer-category-filter">
+
             <FaFilter />
 
             <select
@@ -482,6 +400,7 @@ const CustomerProducts = () => {
               }
               disabled={categoryLoading}
             >
+
               <option value="all">
                 All Categories
               </option>
@@ -496,17 +415,21 @@ const CustomerProducts = () => {
                   </option>
                 )
               )}
+
             </select>
+
           </div>
+
         </motion.div>
 
-        {/* =====================================================
+        {/* =================================================
             CATEGORY CHIPS
-        ====================================================== */}
+        ================================================= */}
 
         {!categoryLoading &&
           categories.length > 0 && (
             <div className="customer-category-chips">
+
               <button
                 type="button"
                 className={
@@ -542,17 +465,20 @@ const CustomerProducts = () => {
                   </button>
                 )
               )}
+
             </div>
           )}
 
-        {/* =====================================================
+        {/* =================================================
             RESULT INFO
-        ====================================================== */}
+        ================================================= */}
 
         {!loading &&
           !error && (
             <div className="customer-products-result-bar">
+
               <div>
+
                 <strong>
                   {selectedCategory ===
                   "all"
@@ -571,6 +497,7 @@ const CustomerProducts = () => {
                   {filteredProducts.length}{" "}
                   products
                 </span>
+
               </div>
 
               {(search ||
@@ -583,15 +510,17 @@ const CustomerProducts = () => {
                   Clear filters
                 </button>
               )}
+
             </div>
           )}
 
-        {/* =====================================================
+        {/* =================================================
             LOADING
-        ====================================================== */}
+        ================================================= */}
 
         {loading && (
           <div className="customer-products-state">
+
             <FaSpinner className="spin" />
 
             <h3>
@@ -602,15 +531,17 @@ const CustomerProducts = () => {
               We're preparing the menu
               for you.
             </p>
+
           </div>
         )}
 
-        {/* =====================================================
+        {/* =================================================
             ERROR
-        ====================================================== */}
+        ================================================= */}
 
         {!loading && error && (
           <div className="customer-products-state error">
+
             <div className="state-icon">
               <FaExclamationCircle />
             </div>
@@ -619,7 +550,9 @@ const CustomerProducts = () => {
               Unable to load products
             </h3>
 
-            <p>{error}</p>
+            <p>
+              {error}
+            </p>
 
             <button
               type="button"
@@ -627,18 +560,20 @@ const CustomerProducts = () => {
             >
               Try Again
             </button>
+
           </div>
         )}
 
-        {/* =====================================================
+        {/* =================================================
             EMPTY
-        ====================================================== */}
+        ================================================= */}
 
         {!loading &&
           !error &&
           filteredProducts.length ===
             0 && (
             <div className="customer-products-state">
+
               <div className="state-icon">
                 <FaIceCream />
               </div>
@@ -665,12 +600,13 @@ const CustomerProducts = () => {
                   Clear Filters
                 </button>
               )}
+
             </div>
           )}
 
-        {/* =====================================================
+        {/* =================================================
             PRODUCT GRID
-        ====================================================== */}
+        ================================================= */}
 
         {!loading &&
           !error &&
@@ -689,9 +625,12 @@ const CustomerProducts = () => {
                 },
               }}
             >
+
               <AnimatePresence>
+
                 {filteredProducts.map(
                   (product) => {
+
                     const quantity =
                       getCartQuantity(
                         product._id
@@ -703,6 +642,11 @@ const CustomerProducts = () => {
                         ? product.category
                             ?.name
                         : "";
+
+                    const price =
+                      Number(
+                        product.price || 0
+                      );
 
                     return (
                       <motion.article
@@ -720,9 +664,13 @@ const CustomerProducts = () => {
                         }}
                         layout
                       >
-                        {/* IMAGE */}
+
+                        {/* =================================
+                            PRODUCT IMAGE
+                        ================================= */}
 
                         <div className="customer-product-image">
+
                           {product.image ? (
                             <img
                               src={
@@ -749,10 +697,12 @@ const CustomerProducts = () => {
                           )}
 
                           <div className="customer-product-image-overlay">
+
                             <span>
                               {categoryName ||
                                 "Ice Cream"}
                             </span>
+
                           </div>
 
                           {quantity > 0 && (
@@ -769,13 +719,19 @@ const CustomerProducts = () => {
                               Added
                             </motion.div>
                           )}
+
                         </div>
 
-                        {/* CONTENT */}
+                        {/* =================================
+                            PRODUCT CONTENT
+                        ================================= */}
 
                         <div className="customer-product-content">
+
                           <div className="customer-product-title-row">
+
                             <div>
+
                               <h3>
                                 {
                                   product.name
@@ -789,15 +745,14 @@ const CustomerProducts = () => {
                                   }
                                 </span>
                               )}
+
                             </div>
 
                             <strong className="customer-product-price">
                               ₹
-                              {Number(
-                                product.price ||
-                                  0
-                              ).toFixed(2)}
+                              {price.toFixed(2)}
                             </strong>
+
                           </div>
 
                           {product.description && (
@@ -808,12 +763,17 @@ const CustomerProducts = () => {
                             </p>
                           )}
 
+                          {/* PRODUCT FOOTER */}
+
                           <div className="customer-product-footer">
+
                             <span className="customer-product-unit">
                               Per{" "}
                               {product.unit ||
                                 "piece"}
                             </span>
+
+                            {/* ADD BUTTON */}
 
                             {quantity ===
                             0 ? (
@@ -821,7 +781,7 @@ const CustomerProducts = () => {
                                 type="button"
                                 className="add-cart-button"
                                 onClick={() =>
-                                  addToCart(
+                                  handleAddToCart(
                                     product
                                   )
                                 }
@@ -833,14 +793,20 @@ const CustomerProducts = () => {
                                 }}
                               >
                                 <FaPlus />
+
                                 Add to Cart
+
                               </motion.button>
                             ) : (
+
+                              /* QUANTITY CONTROL */
+
                               <div className="product-quantity-control">
+
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    decreaseQuantity(
+                                    handleDecreaseQuantity(
                                       product._id
                                     )
                                   }
@@ -856,7 +822,7 @@ const CustomerProducts = () => {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    increaseQuantity(
+                                    handleIncreaseQuantity(
                                       product._id
                                     )
                                   }
@@ -864,24 +830,32 @@ const CustomerProducts = () => {
                                 >
                                   <FaPlus />
                                 </button>
+
                               </div>
+
                             )}
+
                           </div>
+
                         </div>
+
                       </motion.article>
                     );
                   }
                 )}
+
               </AnimatePresence>
+
             </motion.div>
           )}
 
-        {/* =====================================================
+        {/* =================================================
             FLOATING CART
-        ====================================================== */}
+        ================================================= */}
 
         {cartCount > 0 && (
           <motion.button
+            type="button"
             className="customer-floating-cart"
             onClick={goToCart}
             initial={{
@@ -894,11 +868,6 @@ const CustomerProducts = () => {
               y: 0,
               scale: 1,
             }}
-            exit={{
-              opacity: 0,
-              y: 30,
-              scale: 0.9,
-            }}
             whileHover={{
               y: -4,
             }}
@@ -906,15 +875,19 @@ const CustomerProducts = () => {
               scale: 0.96,
             }}
           >
+
             <div className="floating-cart-icon">
+
               <FaShoppingCart />
 
               <span>
                 {cartCount}
               </span>
+
             </div>
 
             <div className="floating-cart-text">
+
               <strong>
                 View Cart
               </strong>
@@ -925,16 +898,18 @@ const CustomerProducts = () => {
                   ? "item"
                   : "items"}
               </small>
+
             </div>
 
             <strong className="floating-cart-total">
-              ₹
-              {cartTotal.toFixed(2)}
+              ₹{cartTotal.toFixed(2)}
             </strong>
 
             <FaArrowRight />
+
           </motion.button>
         )}
+
       </div>
     </div>
   );

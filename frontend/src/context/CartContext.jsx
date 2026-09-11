@@ -1,50 +1,78 @@
 // frontend/src/context/CartContext.jsx
 
-import {
+import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
 
+// =====================================================
+// CART CONFIGURATION
+// =====================================================
+
 const CartContext = createContext(null);
 
 const CART_KEY = "icecream_cart";
+
+// Current GST rate used by the customer cart
+const GST_RATE = 0.05;
+
+// =====================================================
+// SAFE CART READER
+// =====================================================
+
+const getStoredCart = () => {
+  try {
+    const storedCart = localStorage.getItem(CART_KEY);
+
+    if (!storedCart) {
+      return [];
+    }
+
+    const parsedCart = JSON.parse(storedCart);
+
+    if (!Array.isArray(parsedCart)) {
+      return [];
+    }
+
+    return parsedCart
+      .filter((item) => item && item._id)
+      .map((item) => ({
+        ...item,
+        quantity: Math.max(
+          1,
+          Number(item.quantity) || 1
+        ),
+      }));
+  } catch (error) {
+    console.error(
+      "Failed to load cart from localStorage:",
+      error
+    );
+
+    return [];
+  }
+};
 
 // =====================================================
 // CART PROVIDER
 // =====================================================
 
 export const CartProvider = ({ children }) => {
-  // ---------------------------------------------------
-  // LOAD CART FROM LOCAL STORAGE
-  // ---------------------------------------------------
+  // ===================================================
+  // INITIAL CART
+  // ===================================================
 
   const [cartItems, setCartItems] = useState(() => {
-    try {
-      const storedCart = localStorage.getItem(CART_KEY);
-
-      if (!storedCart) {
-        return [];
-      }
-
-      const parsedCart = JSON.parse(storedCart);
-
-      return Array.isArray(parsedCart) ? parsedCart : [];
-    } catch (error) {
-      console.error(
-        "Failed to load cart from localStorage:",
-        error
-      );
-
-      return [];
-    }
+    return getStoredCart();
   });
 
-  // ---------------------------------------------------
-  // SAVE CART TO LOCAL STORAGE
-  // ---------------------------------------------------
+  // ===================================================
+  // PERSIST CART
+  // ===================================================
 
   useEffect(() => {
     try {
@@ -53,6 +81,7 @@ export const CartProvider = ({ children }) => {
         JSON.stringify(cartItems)
       );
 
+      // Notify other components in the same tab.
       window.dispatchEvent(
         new Event("cartUpdated")
       );
@@ -64,26 +93,89 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartItems]);
 
-  // ---------------------------------------------------
-  // ADD TO CART
-  // ---------------------------------------------------
+  // ===================================================
+  // SYNC CART FROM LOCAL STORAGE
+  // ===================================================
+  //
+  // This handles:
+  //
+  // - Multiple tabs
+  // - Existing carts
+  // - Other components modifying localStorage
+  //
+  // ===================================================
 
-  const addToCart = (product) => {
-    if (!product?._id) {
-      console.warn(
-        "Cannot add product without _id:",
-        product
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key !== CART_KEY) {
+        return;
+      }
+
+      setCartItems(getStoredCart());
+    };
+
+    const handleCartUpdated = () => {
+      const storedCart = getStoredCart();
+
+      setCartItems((currentCart) => {
+        const currentJSON = JSON.stringify(
+          currentCart
+        );
+
+        const storedJSON = JSON.stringify(
+          storedCart
+        );
+
+        if (currentJSON === storedJSON) {
+          return currentCart;
+        }
+
+        return storedCart;
+      });
+    };
+
+    window.addEventListener(
+      "storage",
+      handleStorageChange
+    );
+
+    window.addEventListener(
+      "cartUpdated",
+      handleCartUpdated
+    );
+
+    return () => {
+      window.removeEventListener(
+        "storage",
+        handleStorageChange
+      );
+
+      window.removeEventListener(
+        "cartUpdated",
+        handleCartUpdated
+      );
+    };
+  }, []);
+
+  // ===================================================
+  // ADD TO CART
+  // ===================================================
+
+  const addToCart = useCallback((product) => {
+    if (!product || !product._id) {
+      console.error(
+        "Cannot add invalid product to cart."
       );
       return;
     }
 
-    setCartItems((currentItems) => {
-      const existingItem = currentItems.find(
+    setCartItems((currentCart) => {
+      const existingItem = currentCart.find(
         (item) => item._id === product._id
       );
 
       if (existingItem) {
-        return currentItems.map((item) =>
+        return currentCart.map((item) =>
           item._id === product._id
             ? {
                 ...item,
@@ -95,34 +187,42 @@ export const CartProvider = ({ children }) => {
       }
 
       return [
-        ...currentItems,
+        ...currentCart,
         {
           ...product,
           quantity: 1,
         },
       ];
     });
-  };
+  }, []);
 
-  // ---------------------------------------------------
+  // ===================================================
   // REMOVE FROM CART
-  // ---------------------------------------------------
+  // ===================================================
 
-  const removeFromCart = (id) => {
-    setCartItems((currentItems) =>
-      currentItems.filter(
+  const removeFromCart = useCallback((id) => {
+    if (!id) {
+      return;
+    }
+
+    setCartItems((currentCart) =>
+      currentCart.filter(
         (item) => item._id !== id
       )
     );
-  };
+  }, []);
 
-  // ---------------------------------------------------
+  // ===================================================
   // INCREASE QUANTITY
-  // ---------------------------------------------------
+  // ===================================================
 
-  const increaseQuantity = (id) => {
-    setCartItems((currentItems) =>
-      currentItems.map((item) =>
+  const increaseQuantity = useCallback((id) => {
+    if (!id) {
+      return;
+    }
+
+    setCartItems((currentCart) =>
+      currentCart.map((item) =>
         item._id === id
           ? {
               ...item,
@@ -132,64 +232,107 @@ export const CartProvider = ({ children }) => {
           : item
       )
     );
-  };
+  }, []);
 
-  // ---------------------------------------------------
+  // ===================================================
   // DECREASE QUANTITY
-  // ---------------------------------------------------
+  // ===================================================
 
-  const decreaseQuantity = (id) => {
-    setCartItems((currentItems) =>
-      currentItems.map((item) =>
+  const decreaseQuantity = useCallback((id) => {
+    if (!id) {
+      return;
+    }
+
+    setCartItems((currentCart) =>
+      currentCart.map((item) =>
         item._id === id
           ? {
               ...item,
-              quantity:
-                Number(item.quantity || 1) > 1
-                  ? Number(item.quantity || 1) - 1
-                  : 1,
+              quantity: Math.max(
+                1,
+                Number(item.quantity || 1) - 1
+              ),
             }
           : item
       )
     );
-  };
+  }, []);
 
-  // ---------------------------------------------------
+  // ===================================================
+  // SET QUANTITY
+  // ===================================================
+  //
+  // Useful if a future checkout/cart component wants
+  // to directly enter a quantity.
+  //
+  // ===================================================
+
+  const setQuantity = useCallback(
+    (id, quantity) => {
+      if (!id) {
+        return;
+      }
+
+      const parsedQuantity = Number(quantity);
+
+      if (!Number.isFinite(parsedQuantity)) {
+        return;
+      }
+
+      setCartItems((currentCart) =>
+        currentCart.map((item) =>
+          item._id === id
+            ? {
+                ...item,
+                quantity: Math.max(
+                  1,
+                  Math.floor(parsedQuantity)
+                ),
+              }
+            : item
+        )
+      );
+    },
+    []
+  );
+
+  // ===================================================
   // CLEAR CART
-  // ---------------------------------------------------
+  // ===================================================
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCartItems([]);
-  };
+  }, []);
 
-  // ---------------------------------------------------
-  // TOTAL ITEMS
-  // ---------------------------------------------------
+  // ===================================================
+  // CART ITEM COUNT
+  // ===================================================
 
   const totalItems = useMemo(() => {
     return cartItems.reduce(
       (total, item) =>
-        total + Number(item.quantity || 1),
+        total +
+        Math.max(
+          1,
+          Number(item.quantity) || 1
+        ),
       0
     );
   }, [cartItems]);
 
-  // ---------------------------------------------------
+  // ===================================================
   // SUBTOTAL
-  // ---------------------------------------------------
+  // ===================================================
 
   const subtotal = useMemo(() => {
     return cartItems.reduce(
       (total, item) => {
-        const price = Number(
-          item.price ??
-            item.unitPrice ??
-            0
-        );
-
-        const quantity = Number(
-          item.quantity || 1
-        );
+        const price = Number(item.price) || 0;
+        const quantity =
+          Math.max(
+            1,
+            Number(item.quantity) || 1
+          );
 
         return total + price * quantity;
       },
@@ -197,38 +340,92 @@ export const CartProvider = ({ children }) => {
     );
   }, [cartItems]);
 
-  // ---------------------------------------------------
+  // ===================================================
   // GST
-  // ---------------------------------------------------
+  // ===================================================
 
   const gst = useMemo(() => {
-    return subtotal * 0.18;
+    return subtotal * GST_RATE;
   }, [subtotal]);
 
-  // ---------------------------------------------------
+  // ===================================================
   // GRAND TOTAL
-  // ---------------------------------------------------
+  // ===================================================
 
   const grandTotal = useMemo(() => {
     return subtotal + gst;
   }, [subtotal, gst]);
 
-  // ---------------------------------------------------
-  // CONTEXT VALUE
-  // ---------------------------------------------------
+  // ===================================================
+  // FORMATTED VALUES
+  // ===================================================
 
-  const value = {
-    cartItems,
-    addToCart,
-    removeFromCart,
-    increaseQuantity,
-    decreaseQuantity,
-    clearCart,
-    totalItems,
-    subtotal,
-    gst,
-    grandTotal,
-  };
+  const formattedSubtotal = useMemo(() => {
+    return subtotal.toFixed(2);
+  }, [subtotal]);
+
+  const formattedGst = useMemo(() => {
+    return gst.toFixed(2);
+  }, [gst]);
+
+  const formattedGrandTotal = useMemo(() => {
+    return grandTotal.toFixed(2);
+  }, [grandTotal]);
+
+  // ===================================================
+  // CONTEXT VALUE
+  // ===================================================
+
+  const value = useMemo(
+    () => ({
+      // Cart
+      cartItems,
+
+      // Cart operations
+      addToCart,
+      removeFromCart,
+      increaseQuantity,
+      decreaseQuantity,
+      setQuantity,
+      clearCart,
+
+      // Counts
+      totalItems,
+
+      // Pricing
+      subtotal,
+      gst,
+      grandTotal,
+
+      // Formatted pricing
+      formattedSubtotal,
+      formattedGst,
+      formattedGrandTotal,
+
+      // Configuration
+      gstRate: GST_RATE,
+    }),
+    [
+      cartItems,
+      addToCart,
+      removeFromCart,
+      increaseQuantity,
+      decreaseQuantity,
+      setQuantity,
+      clearCart,
+      totalItems,
+      subtotal,
+      gst,
+      grandTotal,
+      formattedSubtotal,
+      formattedGst,
+      formattedGrandTotal,
+    ]
+  );
+
+  // ===================================================
+  // PROVIDER
+  // ===================================================
 
   return (
     <CartContext.Provider value={value}>
@@ -238,7 +435,7 @@ export const CartProvider = ({ children }) => {
 };
 
 // =====================================================
-// USE CART
+// USE CART HOOK
 // =====================================================
 
 export const useCart = () => {

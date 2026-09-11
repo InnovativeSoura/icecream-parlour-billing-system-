@@ -28,6 +28,10 @@ import "./MyCart.css";
 const MyCart = () => {
   const navigate = useNavigate();
 
+  // ===================================================
+  // CART CONTEXT
+  // ===================================================
+
   const {
     cartItems,
     removeFromCart,
@@ -38,6 +42,7 @@ const MyCart = () => {
     subtotal,
     gst,
     grandTotal,
+    gstRate,
   } = useCart();
 
   const [showClearModal, setShowClearModal] =
@@ -66,22 +71,29 @@ const MyCart = () => {
   // ===================================================
 
   const updateQuantity = (item, change) => {
-    if (!item?._id) return;
+    if (!item?._id) {
+      return;
+    }
 
-    const quantity = Number(
-      item.quantity || 1
+    const quantity = Math.max(
+      1,
+      Number(item.quantity || 1)
     );
 
+    // Increase
     if (change > 0) {
       increaseQuantity(item._id);
       return;
     }
 
+    // If quantity is already 1,
+    // remove the item instead of going to 0.
     if (quantity <= 1) {
       removeItem(item);
       return;
     }
 
+    // Decrease
     decreaseQuantity(item._id);
   };
 
@@ -90,7 +102,9 @@ const MyCart = () => {
   // ===================================================
 
   const removeItem = (item) => {
-    if (!item?._id) return;
+    if (!item?._id) {
+      return;
+    }
 
     removeFromCart(item._id);
 
@@ -129,7 +143,11 @@ const MyCart = () => {
     navigate("/customer/orders", {
       state: {
         checkout: true,
+
+        // Keep the existing state structure
+        // expected by the checkout page.
         cart: cartItems,
+
         totals,
       },
     });
@@ -146,14 +164,28 @@ const MyCart = () => {
   };
 
   // ===================================================
+  // GST LABEL
+  // ===================================================
+
+  const gstPercentage = Math.round(
+    Number(gstRate || 0) * 100
+  );
+
+  // ===================================================
   // EMPTY CART
   // ===================================================
 
   if (!cartItems.length) {
     return (
       <div className="my-cart-page">
+
+        {/* Background */}
+
         <div className="cart-background-orb cart-orb-one" />
+
         <div className="cart-background-orb cart-orb-two" />
+
+        {/* Empty State */}
 
         <motion.div
           className="cart-empty-state"
@@ -169,9 +201,14 @@ const MyCart = () => {
             duration: 0.5,
           }}
         >
+
           <div className="empty-cart-icon">
             <FaShoppingCart />
           </div>
+
+          <span className="cart-eyebrow">
+            YOUR SELECTION
+          </span>
 
           <h1>
             Your Cart is Empty
@@ -185,6 +222,7 @@ const MyCart = () => {
           </p>
 
           <motion.button
+            type="button"
             className="cart-primary-button"
             onClick={() =>
               navigate(
@@ -200,11 +238,15 @@ const MyCart = () => {
           >
             <FaIceCream />
 
-            Browse Products
+            <span>
+              Browse Products
+            </span>
 
             <FaArrowRight />
           </motion.button>
+
         </motion.div>
+
       </div>
     );
   }
@@ -215,7 +257,11 @@ const MyCart = () => {
 
   return (
     <div className="my-cart-page">
+
+      {/* Background */}
+
       <div className="cart-background-orb cart-orb-one" />
+
       <div className="cart-background-orb cart-orb-two" />
 
       <div className="my-cart-container">
@@ -238,6 +284,9 @@ const MyCart = () => {
             duration: 0.45,
           }}
         >
+
+          {/* Header Left */}
+
           <div className="cart-header-left">
 
             <div className="cart-title-icon">
@@ -245,6 +294,7 @@ const MyCart = () => {
             </div>
 
             <div>
+
               <span className="cart-eyebrow">
                 YOUR SELECTION
               </span>
@@ -257,13 +307,17 @@ const MyCart = () => {
                 Review your delicious
                 selections before checkout.
               </p>
+
             </div>
 
           </div>
 
+          {/* Header Actions */}
+
           <div className="cart-header-actions">
 
             <div className="cart-item-count">
+
               <FaShoppingCart />
 
               <span>
@@ -272,6 +326,7 @@ const MyCart = () => {
                   ? "Item"
                   : "Items"}
               </span>
+
             </div>
 
             <button
@@ -282,10 +337,14 @@ const MyCart = () => {
               }
             >
               <FaTrash />
-              Clear Cart
+
+              <span>
+                Clear Cart
+              </span>
             </button>
 
           </div>
+
         </motion.header>
 
         {/* =========================================
@@ -300,9 +359,12 @@ const MyCart = () => {
 
           <section className="cart-items-section">
 
+            {/* Section Heading */}
+
             <div className="cart-section-heading">
 
               <div>
+
                 <h2>
                   Cart Items
                 </h2>
@@ -314,6 +376,7 @@ const MyCart = () => {
                     : "items"}{" "}
                   selected
                 </span>
+
               </div>
 
               <button
@@ -325,218 +388,258 @@ const MyCart = () => {
                   )
                 }
               >
-                Continue Shopping
+                <span>
+                  Continue Shopping
+                </span>
+
                 <FaArrowRight />
               </button>
 
             </div>
 
+            {/* Cart Items */}
+
             <div className="cart-items-list">
 
               <AnimatePresence mode="popLayout">
 
-                {cartItems.map(
-                  (item) => {
+                {cartItems.map((item) => {
 
-                    const price =
-                      Number(
-                        item.price ??
-                          item.unitPrice ??
-                          0
-                      );
+                  // ---------------------------------
+                  // PRICE
+                  // ---------------------------------
 
-                    const quantity =
-                      Number(
-                        item.quantity || 1
-                      );
+                  const price = Number(
+                    item.price ??
+                    item.unitPrice ??
+                    0
+                  );
 
-                    const itemTotal =
-                      price * quantity;
+                  // ---------------------------------
+                  // QUANTITY
+                  // ---------------------------------
 
-                    return (
-                      <motion.article
-                        className="cart-item-card"
-                        key={
-                          item._id ||
-                          item.id ||
-                          item.name
-                        }
-                        layout
-                        initial={{
-                          opacity: 0,
-                          y: 15,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                        }}
-                        exit={{
-                          opacity: 0,
-                          x: -30,
-                          height: 0,
-                          marginBottom: 0,
-                        }}
-                        transition={{
-                          duration: 0.3,
-                        }}
-                      >
+                  const quantity = Math.max(
+                    1,
+                    Number(
+                      item.quantity || 1
+                    )
+                  );
 
-                        {/* Product Image */}
+                  // ---------------------------------
+                  // ITEM TOTAL
+                  // ---------------------------------
 
-                        <div className="cart-product-image-wrapper">
+                  const itemTotal =
+                    price * quantity;
 
-                          {item.image ? (
-                            <img
-                              src={item.image}
-                              alt={
-                                item.name ||
-                                "Ice cream"
-                              }
-                              className="cart-product-image"
-                              onError={(
-                                event
-                              ) => {
-                                event.currentTarget.style.display =
-                                  "none";
+                  return (
+                    <motion.article
+                      className="cart-item-card"
+                      key={
+                        item._id ||
+                        item.id ||
+                        item.name
+                      }
+                      layout
+                      initial={{
+                        opacity: 0,
+                        y: 15,
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        x: -30,
+                        height: 0,
+                        marginBottom: 0,
+                      }}
+                      transition={{
+                        duration: 0.3,
+                      }}
+                    >
 
-                                event.currentTarget.parentElement.classList.add(
-                                  "image-fallback"
-                                );
-                              }}
-                            />
-                          ) : (
-                            <div className="cart-product-image-placeholder">
-                              <FaIceCream />
-                            </div>
-                          )}
+                      {/* =================================
+                          PRODUCT IMAGE
+                      ================================= */}
 
-                          <div className="cart-image-badge">
+                      <div className="cart-product-image-wrapper">
+
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={
+                              item.name ||
+                              "Ice cream"
+                            }
+                            className="cart-product-image"
+                            onError={(
+                              event
+                            ) => {
+                              event.currentTarget.style.display =
+                                "none";
+
+                              event.currentTarget.parentElement.classList.add(
+                                "image-fallback"
+                              );
+                            }}
+                          />
+                        ) : (
+                          <div className="cart-product-image-placeholder">
                             <FaIceCream />
                           </div>
+                        )}
 
+                        <div className="cart-image-badge">
+                          <FaIceCream />
                         </div>
 
-                        {/* Product Details */}
+                      </div>
 
-                        <div className="cart-product-details">
+                      {/* =================================
+                          PRODUCT DETAILS
+                      ================================= */}
 
-                          <div className="cart-product-main">
+                      <div className="cart-product-details">
 
-                            <h3>
-                              {item.name ||
-                                "Ice Cream"}
-                            </h3>
+                        <div className="cart-product-main">
 
-                            {item.category?.name && (
-                              <span className="cart-product-category">
-                                {
-                                  item.category
-                                    .name
-                                }
-                              </span>
-                            )}
+                          <h3>
+                            {item.name ||
+                              "Ice Cream"}
+                          </h3>
 
-                            {item.sku && (
-                              <span className="cart-product-sku">
-                                SKU:{" "}
-                                {item.sku}
-                              </span>
-                            )}
+                          {/* Category */}
 
-                          </div>
-
-                          <div className="cart-product-price">
-                            {formatPrice(
-                              price
-                            )}
-
-                            <span>
-                              / item
-                            </span>
-                          </div>
-
-                        </div>
-
-                        {/* Quantity */}
-
-                        <div className="cart-quantity-section">
-
-                          <span className="quantity-label">
-                            Quantity
-                          </span>
-
-                          <div className="quantity-control">
-
-                            <button
-                              type="button"
-                              aria-label="Decrease quantity"
-                              onClick={() =>
-                                updateQuantity(
-                                  item,
-                                  -1
-                                )
+                          {item.category?.name && (
+                            <span className="cart-product-category">
+                              {
+                                item.category
+                                  .name
                               }
-                            >
-                              <FaMinus />
-                            </button>
-
-                            <span>
-                              {quantity}
                             </span>
+                          )}
 
-                            <button
-                              type="button"
-                              aria-label="Increase quantity"
-                              onClick={() =>
-                                updateQuantity(
-                                  item,
-                                  1
-                                )
-                              }
-                            >
-                              <FaPlus />
-                            </button>
+                          {/* SKU */}
 
-                          </div>
+                          {item.sku && (
+                            <span className="cart-product-sku">
+                              SKU:{" "}
+                              {item.sku}
+                            </span>
+                          )}
 
                         </div>
 
-                        {/* Item Total */}
+                        {/* Product Price */}
 
-                        <div className="cart-item-total">
+                        <div className="cart-product-price">
+
+                          {formatPrice(
+                            price
+                          )}
 
                           <span>
-                            Total
+                            / item
                           </span>
-
-                          <strong>
-                            {formatPrice(
-                              itemTotal
-                            )}
-                          </strong>
 
                         </div>
 
-                        {/* Remove */}
+                      </div>
 
-                        <button
-                          type="button"
-                          className="remove-cart-item"
-                          aria-label={`Remove ${
-                            item.name ||
-                            "item"
-                          }`}
-                          onClick={() =>
-                            removeItem(item)
-                          }
-                        >
-                          <FaTrash />
-                        </button>
+                      {/* =================================
+                          QUANTITY
+                      ================================= */}
 
-                      </motion.article>
-                    );
-                  }
-                )}
+                      <div className="cart-quantity-section">
+
+                        <span className="quantity-label">
+                          Quantity
+                        </span>
+
+                        <div className="quantity-control">
+
+                          <button
+                            type="button"
+                            aria-label={`Decrease quantity of ${
+                              item.name ||
+                              "item"
+                            }`}
+                            onClick={() =>
+                              updateQuantity(
+                                item,
+                                -1
+                              )
+                            }
+                          >
+                            <FaMinus />
+                          </button>
+
+                          <span>
+                            {quantity}
+                          </span>
+
+                          <button
+                            type="button"
+                            aria-label={`Increase quantity of ${
+                              item.name ||
+                              "item"
+                            }`}
+                            onClick={() =>
+                              updateQuantity(
+                                item,
+                                1
+                              )
+                            }
+                          >
+                            <FaPlus />
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                      {/* =================================
+                          ITEM TOTAL
+                      ================================= */}
+
+                      <div className="cart-item-total">
+
+                        <span>
+                          Total
+                        </span>
+
+                        <strong>
+                          {formatPrice(
+                            itemTotal
+                          )}
+                        </strong>
+
+                      </div>
+
+                      {/* =================================
+                          REMOVE
+                      ================================= */}
+
+                      <button
+                        type="button"
+                        className="remove-cart-item"
+                        aria-label={`Remove ${
+                          item.name ||
+                          "item"
+                        }`}
+                        onClick={() =>
+                          removeItem(item)
+                        }
+                      >
+                        <FaTrash />
+                      </button>
+
+                    </motion.article>
+                  );
+                })}
 
               </AnimatePresence>
 
@@ -548,6 +651,8 @@ const MyCart = () => {
 
             <div className="cart-trust-strip">
 
+              {/* Secure Checkout */}
+
               <div className="cart-trust-item">
 
                 <div className="trust-icon">
@@ -555,6 +660,7 @@ const MyCart = () => {
                 </div>
 
                 <div>
+
                   <strong>
                     Secure Checkout
                   </strong>
@@ -562,9 +668,12 @@ const MyCart = () => {
                   <span>
                     Your payment is protected
                   </span>
+
                 </div>
 
               </div>
+
+              {/* Digital Invoice */}
 
               <div className="cart-trust-item">
 
@@ -573,6 +682,7 @@ const MyCart = () => {
                 </div>
 
                 <div>
+
                   <strong>
                     Digital Invoice
                   </strong>
@@ -580,9 +690,12 @@ const MyCart = () => {
                   <span>
                     Available after purchase
                   </span>
+
                 </div>
 
               </div>
+
+              {/* Freshly Prepared */}
 
               <div className="cart-trust-item">
 
@@ -591,6 +704,7 @@ const MyCart = () => {
                 </div>
 
                 <div>
+
                   <strong>
                     Freshly Prepared
                   </strong>
@@ -598,6 +712,7 @@ const MyCart = () => {
                   <span>
                     Made with quality ingredients
                   </span>
+
                 </div>
 
               </div>
@@ -612,9 +727,12 @@ const MyCart = () => {
 
           <aside className="cart-summary-card">
 
+            {/* Summary Header */}
+
             <div className="summary-card-header">
 
               <div>
+
                 <span>
                   ORDER SUMMARY
                 </span>
@@ -622,6 +740,7 @@ const MyCart = () => {
                 <h2>
                   Checkout
                 </h2>
+
               </div>
 
               <div className="summary-icon">
@@ -630,7 +749,13 @@ const MyCart = () => {
 
             </div>
 
+            {/* =====================================
+                SUMMARY ITEMS
+            ===================================== */}
+
             <div className="summary-items">
+
+              {/* Subtotal */}
 
               <div className="summary-row">
 
@@ -646,12 +771,14 @@ const MyCart = () => {
 
               </div>
 
+              {/* GST */}
+
               <div className="summary-row">
 
                 <span>
-                  GST
+                  GST{" "}
                   <small>
-                    18%
+                    {gstPercentage}%
                   </small>
                 </span>
 
@@ -665,9 +792,12 @@ const MyCart = () => {
 
               <div className="summary-divider" />
 
+              {/* Grand Total */}
+
               <div className="summary-total-row">
 
                 <div>
+
                   <span>
                     Total Amount
                   </span>
@@ -675,6 +805,7 @@ const MyCart = () => {
                   <small>
                     Inclusive of applicable tax
                   </small>
+
                 </div>
 
                 <strong>
@@ -687,7 +818,9 @@ const MyCart = () => {
 
             </div>
 
-            {/* Checkout */}
+            {/* =====================================
+                CHECKOUT BUTTON
+            ===================================== */}
 
             <motion.button
               type="button"
@@ -700,6 +833,7 @@ const MyCart = () => {
                 scale: 0.98,
               }}
             >
+
               <span>
                 Proceed to Checkout
               </span>
@@ -709,6 +843,10 @@ const MyCart = () => {
               </div>
 
             </motion.button>
+
+            {/* =====================================
+                SECURE PAYMENT NOTE
+            ===================================== */}
 
             <div className="secure-payment-note">
 
@@ -721,6 +859,10 @@ const MyCart = () => {
 
             </div>
 
+            {/* =====================================
+                ADD MORE ITEMS
+            ===================================== */}
+
             <button
               type="button"
               className="summary-browse-button"
@@ -730,13 +872,19 @@ const MyCart = () => {
                 )
               }
             >
+
               <FaIceCream />
-              Add More Items
+
+              <span>
+                Add More Items
+              </span>
+
             </button>
 
           </aside>
 
         </div>
+
       </div>
 
       {/* =========================================
@@ -787,6 +935,8 @@ const MyCart = () => {
               }
             >
 
+              {/* Close */}
+
               <button
                 type="button"
                 className="modal-close-button"
@@ -797,6 +947,8 @@ const MyCart = () => {
               >
                 <FaTimes />
               </button>
+
+              {/* Warning Icon */}
 
               <div className="modal-warning-icon">
                 <FaTrash />
@@ -814,6 +966,8 @@ const MyCart = () => {
                   : "items"}{" "}
                 from your cart.
               </p>
+
+              {/* Modal Actions */}
 
               <div className="modal-actions">
 
@@ -835,7 +989,10 @@ const MyCart = () => {
                   }
                 >
                   <FaTrash />
-                  Clear Cart
+
+                  <span>
+                    Clear Cart
+                  </span>
                 </button>
 
               </div>
