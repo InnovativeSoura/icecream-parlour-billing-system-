@@ -28,24 +28,29 @@ const CustomerOrders = () => {
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [cancelConfirmOrder, setCancelConfirmOrder] = useState(null);
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
+  /* =========================================================
+     FETCH ORDERS
+  ========================================================= */
+
   const fetchOrders = async () => {
     try {
       setLoading(true);
 
       const response = await api.get("/orders/my-orders");
-
       const data = response?.data;
 
       if (data?.success) {
@@ -60,23 +65,33 @@ const CustomerOrders = () => {
       setOrders([]);
 
       toast.error(
-        error?.response?.data?.message || "Unable to load your orders",
+        error?.response?.data?.message ||
+          "Unable to load your orders",
       );
     } finally {
       setLoading(false);
     }
   };
 
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
   const getOrderId = (order) => {
     return order?._id || order?.id;
   };
 
   const getOrderNumber = (order) => {
-    return order?.orderNumber || `#${getOrderId(order)?.slice(-6)}`;
+    return (
+      order?.orderNumber ||
+      `#${getOrderId(order)?.slice(-6) || "UNKNOWN"}`
+    );
   };
 
   const getOrderDate = (order) => {
-    if (!order?.createdAt) return "Date unavailable";
+    if (!order?.createdAt) {
+      return "Date unavailable";
+    }
 
     return new Date(order.createdAt).toLocaleDateString("en-IN", {
       day: "2-digit",
@@ -86,12 +101,56 @@ const CustomerOrders = () => {
   };
 
   const getOrderTime = (order) => {
-    if (!order?.createdAt) return "";
+    if (!order?.createdAt) {
+      return "";
+    }
 
     return new Date(order.createdAt).toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const formatStatus = (status) => {
+    if (!status) {
+      return "Pending";
+    }
+
+    return status
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
+  const formatPaymentMethod = (method) => {
+    if (!method || method === "unpaid") {
+      return "Pending";
+    }
+
+    if (method === "razorpay") {
+      return "Razorpay";
+    }
+
+    return method
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
+  const formatCurrency = (amount) => {
+    return `₹${Number(amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const getItemCount = (order) => {
+    if (!Array.isArray(order?.items)) {
+      return 0;
+    }
+
+    return order.items.reduce(
+      (total, item) => total + Number(item?.quantity || 0),
+      0,
+    );
   };
 
   const getStatusClass = (status) => {
@@ -138,57 +197,52 @@ const CustomerOrders = () => {
     }
   };
 
-  const formatStatus = (status) => {
-    if (!status) return "Pending";
+  /* =========================================================
+     CANCEL ELIGIBILITY
+  ========================================================= */
 
-    return status
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
-  };
-
-  const formatPaymentMethod = (method) => {
-    if (!method || method === "unpaid") {
-      return "Pending";
+  const canCancelOrder = (order) => {
+    if (!order) {
+      return false;
     }
 
-    if (method === "razorpay") {
-      return "Razorpay";
-    }
+    const cancellableStatuses = [
+      "pending",
+      "confirmed",
+    ];
 
-    return method
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
-  };
-
-  const formatCurrency = (amount) => {
-    return `₹${Number(amount || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  };
-
-  const getItemCount = (order) => {
-    if (!Array.isArray(order?.items)) return 0;
-
-    return order.items.reduce(
-      (total, item) => total + Number(item?.quantity || 0),
-      0,
+    return (
+      cancellableStatuses.includes(order.status) &&
+      order.paymentStatus !== "paid" &&
+      order.paymentStatus !== "refunded" &&
+      order.paymentStatus !== "cancelled"
     );
   };
+
+  /* =========================================================
+     FILTERING
+  ========================================================= */
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const orderNumber = getOrderNumber(order).toLowerCase();
 
+      const searchValue = search.trim().toLowerCase();
+
       const matchesSearch =
-        !search.trim() || orderNumber.includes(search.trim().toLowerCase());
+        !searchValue || orderNumber.includes(searchValue);
 
       const matchesStatus =
-        statusFilter === "all" || order?.status === statusFilter;
+        statusFilter === "all" ||
+        order?.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
   }, [orders, search, statusFilter]);
+
+  /* =========================================================
+     STATISTICS
+  ========================================================= */
 
   const stats = useMemo(() => {
     const total = orders.length;
@@ -198,12 +252,18 @@ const CustomerOrders = () => {
     ).length;
 
     const pending = orders.filter((order) =>
-      ["pending", "confirmed", "processing"].includes(order.status),
+      ["pending", "confirmed", "processing"].includes(
+        order.status,
+      ),
     ).length;
 
     const spent = orders
       .filter((order) => order.paymentStatus === "paid")
-      .reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+      .reduce(
+        (sum, order) =>
+          sum + Number(order.totalAmount || 0),
+        0,
+      );
 
     return {
       total,
@@ -213,8 +273,14 @@ const CustomerOrders = () => {
     };
   }, [orders]);
 
+  /* =========================================================
+     ORDER DETAILS
+  ========================================================= */
+
   const toggleOrder = (orderId) => {
-    setExpandedOrder((current) => (current === orderId ? null : orderId));
+    setExpandedOrder((current) =>
+      current === orderId ? null : orderId,
+    );
   };
 
   const handleViewOrder = (order) => {
@@ -223,6 +289,29 @@ const CustomerOrders = () => {
 
   const closeModal = () => {
     setSelectedOrder(null);
+  };
+
+  /* =========================================================
+     CANCEL ORDER
+  ========================================================= */
+
+  const openCancelConfirmation = (order) => {
+    if (!canCancelOrder(order)) {
+      toast.info(
+        "This order can no longer be cancelled.",
+      );
+      return;
+    }
+
+    setCancelConfirmOrder(order);
+  };
+
+  const closeCancelConfirmation = () => {
+    if (cancellingOrderId) {
+      return;
+    }
+
+    setCancelConfirmOrder(null);
   };
 
   const handleCancelOrder = async (order) => {
@@ -236,72 +325,101 @@ const CustomerOrders = () => {
     try {
       setCancellingOrderId(orderId);
 
-      const response = await api.patch(`/orders/${orderId}/cancel`);
+      const response = await api.patch(
+        `/orders/${orderId}/cancel`,
+      );
 
       if (response?.data?.success) {
         const updatedOrder = response.data.order;
 
+        const normalizedOrder = {
+          ...order,
+          ...(updatedOrder || {}),
+          status: "cancelled",
+          paymentStatus:
+            updatedOrder?.paymentStatus || "cancelled",
+        };
+
         setOrders((currentOrders) =>
           currentOrders.map((item) =>
             getOrderId(item) === orderId
-              ? {
-                  ...item,
-                  ...updatedOrder,
-                  status: "cancelled",
-                  paymentStatus: updatedOrder?.paymentStatus || "cancelled",
-                }
+              ? normalizedOrder
               : item,
           ),
         );
 
-        if (selectedOrder && getOrderId(selectedOrder) === orderId) {
-          setSelectedOrder((current) => ({
-            ...current,
-            ...updatedOrder,
-            status: "cancelled",
-            paymentStatus: updatedOrder?.paymentStatus || "cancelled",
-          }));
+        if (
+          selectedOrder &&
+          getOrderId(selectedOrder) === orderId
+        ) {
+          setSelectedOrder(normalizedOrder);
+        }
+
+        if (expandedOrder === orderId) {
+          setExpandedOrder(null);
         }
 
         setCancelConfirmOrder(null);
 
-        toast.success("Order cancelled successfully");
+        toast.success(
+          "Order cancelled successfully.",
+        );
       } else {
-        toast.error(response?.data?.message || "Unable to cancel order");
+        toast.error(
+          response?.data?.message ||
+            "Unable to cancel order",
+        );
       }
     } catch (error) {
-      console.error("Cancel order error:", error);
+      console.error(
+        "Cancel order error:",
+        error,
+      );
 
-      toast.error(error?.response?.data?.message || "Unable to cancel order");
+      toast.error(
+        error?.response?.data?.message ||
+          "Unable to cancel order",
+      );
     } finally {
       setCancellingOrderId(null);
     }
   };
+
+  /* =========================================================
+     REORDER
+  ========================================================= */
+
   const handleReorder = (order) => {
     if (!order?.items?.length) {
-      toast.error("This order cannot be reordered");
+      toast.error(
+        "This order cannot be reordered.",
+      );
       return;
     }
 
     /*
-     * The actual cart implementation will be connected
-     * when the customer cart flow is finalized.
+     * Cart integration can be connected here.
      */
-    toast.info("Reorder will be connected to your shopping cart.");
-  };
-
-  const canCancelOrder = (order) => {
-    return (
-      ["pending", "confirmed"].includes(order?.status) &&
-      order?.paymentStatus !== "paid"
+    toast.info(
+      "Reorder will be connected to your shopping cart.",
     );
   };
+
+  /* =========================================================
+     EMPTY STATE
+  ========================================================= */
 
   const renderEmptyState = () => (
     <motion.div
       className="customer-orders-empty"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{
+        opacity: 0,
+        y: 20,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+      }}
     >
       <div className="empty-icon">
         <FaShoppingBag />
@@ -319,7 +437,9 @@ const CustomerOrders = () => {
         <button
           type="button"
           className="start-shopping-btn"
-          onClick={() => navigate("/customer/products")}
+          onClick={() =>
+            navigate("/customer/products")
+          }
         >
           <FaShoppingBag />
           Start Shopping
@@ -328,19 +448,35 @@ const CustomerOrders = () => {
     </motion.div>
   );
 
+  /* =========================================================
+     RENDER
+  ========================================================= */
+
   return (
     <main className="customer-orders-page">
       <div className="customer-orders-container">
-        {/* Header */}
+
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
+
         <motion.header
           className="customer-orders-header"
-          initial={{ opacity: 0, y: -18 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{
+            opacity: 0,
+            y: -18,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
         >
           <button
             type="button"
             className="back-button"
-            onClick={() => navigate("/customer/dashboard")}
+            onClick={() =>
+              navigate("/customer/dashboard")
+            }
           >
             <FaArrowLeft />
             Dashboard
@@ -348,11 +484,16 @@ const CustomerOrders = () => {
 
           <div className="header-content">
             <div>
-              <span className="page-eyebrow">MY ACCOUNT</span>
+              <span className="page-eyebrow">
+                MY ACCOUNT
+              </span>
 
               <h1>My Orders</h1>
 
-              <p>Track your orders and view your purchase history.</p>
+              <p>
+                Track your orders and view your
+                purchase history.
+              </p>
             </div>
 
             <div className="header-icon">
@@ -361,12 +502,23 @@ const CustomerOrders = () => {
           </div>
         </motion.header>
 
-        {/* Stats */}
+        {/* =====================================================
+            STATS
+        ===================================================== */}
+
         <motion.section
           className="orders-stats"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.08,
+          }}
         >
           <div className="stat-card">
             <div className="stat-icon">
@@ -408,17 +560,30 @@ const CustomerOrders = () => {
 
             <div>
               <span>Total Spent</span>
-              <strong>{formatCurrency(stats.spent)}</strong>
+              <strong>
+                {formatCurrency(stats.spent)}
+              </strong>
             </div>
           </div>
         </motion.section>
 
-        {/* Filters */}
+        {/* =====================================================
+            FILTER TOOLBAR
+        ===================================================== */}
+
         <motion.section
           className="orders-toolbar"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
+          initial={{
+            opacity: 0,
+            y: 20,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          transition={{
+            delay: 0.12,
+          }}
         >
           <div className="orders-search">
             <FaSearch />
@@ -426,12 +591,18 @@ const CustomerOrders = () => {
             <input
               type="text"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
               placeholder="Search by order number..."
             />
 
             {search && (
-              <button type="button" onClick={() => setSearch("")}>
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
                 <FaTimes />
               </button>
             )}
@@ -442,15 +613,37 @@ const CustomerOrders = () => {
 
             <select
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
+              onChange={(event) =>
+                setStatusFilter(event.target.value)
+              }
             >
-              <option value="all">All Orders</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="processing">Processing</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="refunded">Refunded</option>
+              <option value="all">
+                All Orders
+              </option>
+
+              <option value="pending">
+                Pending
+              </option>
+
+              <option value="confirmed">
+                Confirmed
+              </option>
+
+              <option value="processing">
+                Processing
+              </option>
+
+              <option value="completed">
+                Completed
+              </option>
+
+              <option value="cancelled">
+                Cancelled
+              </option>
+
+              <option value="refunded">
+                Refunded
+              </option>
             </select>
           </div>
 
@@ -460,266 +653,451 @@ const CustomerOrders = () => {
             onClick={fetchOrders}
             disabled={loading}
           >
-            <FaRedo className={loading ? "spin" : ""} />
+            <FaRedo
+              className={
+                loading ? "spin" : ""
+              }
+            />
+
             Refresh
           </button>
         </motion.section>
 
-        {/* Orders */}
+        {/* =====================================================
+            ORDERS
+        ===================================================== */}
+
         <section className="orders-list-section">
           {loading ? (
             <div className="orders-loading">
               <FaSpinner className="spin" />
-              <p>Loading your orders...</p>
+
+              <p>
+                Loading your orders...
+              </p>
             </div>
           ) : filteredOrders.length === 0 ? (
             renderEmptyState()
           ) : (
             <div className="orders-list">
               <AnimatePresence>
-                {filteredOrders.map((order, index) => {
-                  const orderId = getOrderId(order);
+                {filteredOrders.map(
+                  (order, index) => {
+                    const orderId =
+                      getOrderId(order);
 
-                  const isExpanded = expandedOrder === orderId;
+                    const isExpanded =
+                      expandedOrder ===
+                      orderId;
 
-                  return (
-                    <motion.article
-                      className="order-card"
-                      key={orderId}
-                      initial={{
-                        opacity: 0,
-                        y: 18,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                      }}
-                      transition={{
-                        delay: index * 0.04,
-                      }}
-                    >
-                      <div className="order-card-main">
-                        <div className="order-product-icon">
-                          <FaReceipt />
-                        </div>
+                    const isCancelling =
+                      cancellingOrderId ===
+                      orderId;
 
-                        <div className="order-main-info">
-                          <div className="order-number-row">
-                            <h2>{getOrderNumber(order)}</h2>
+                    return (
+                      <motion.article
+                        className="order-card"
+                        key={orderId}
+                        initial={{
+                          opacity: 0,
+                          y: 18,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        transition={{
+                          delay:
+                            index * 0.04,
+                        }}
+                      >
+                        {/* =================================================
+                            ORDER CARD HEADER
+                        ================================================= */}
 
-                            <span
-                              className={`order-status ${getStatusClass(
-                                order.status,
+                        <div className="order-card-main">
+                          <div className="order-product-icon">
+                            <FaReceipt />
+                          </div>
+
+                          <div className="order-main-info">
+                            <div className="order-number-row">
+                              <h2>
+                                {getOrderNumber(
+                                  order,
+                                )}
+                              </h2>
+
+                              <span
+                                className={`order-status ${getStatusClass(
+                                  order.status,
+                                )}`}
+                              >
+                                {formatStatus(
+                                  order.status,
+                                )}
+                              </span>
+                            </div>
+
+                            <div className="order-meta">
+                              <span>
+                                <FaCalendarAlt />
+                                {getOrderDate(
+                                  order,
+                                )}
+                              </span>
+
+                              <span>
+                                <FaClock />
+                                {getOrderTime(
+                                  order,
+                                )}
+                              </span>
+
+                              <span>
+                                <FaBoxOpen />
+                                {getItemCount(
+                                  order,
+                                )}{" "}
+                                {getItemCount(
+                                  order,
+                                ) === 1
+                                  ? "item"
+                                  : "items"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="order-total">
+                            <span>Total</span>
+
+                            <strong>
+                              {formatCurrency(
+                                order.totalAmount,
+                              )}
+                            </strong>
+
+                            <small
+                              className={`payment-status ${getPaymentClass(
+                                order.paymentStatus,
                               )}`}
                             >
-                              {formatStatus(order.status)}
-                            </span>
+                              {formatStatus(
+                                order.paymentStatus,
+                              )}
+                            </small>
                           </div>
 
-                          <div className="order-meta">
-                            <span>
-                              <FaCalendarAlt />
-                              {getOrderDate(order)}
-                            </span>
+                          {/* =================================================
+                              QUICK ACTIONS
+                          ================================================= */}
 
-                            <span>
-                              <FaClock />
-                              {getOrderTime(order)}
-                            </span>
-
-                            <span>
-                              <FaBoxOpen />
-                              {getItemCount(order)}{" "}
-                              {getItemCount(order) === 1 ? "item" : "items"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="order-total">
-                          <span>Total</span>
-
-                          <strong>{formatCurrency(order.totalAmount)}</strong>
-
-                          <small
-                            className={`payment-status ${getPaymentClass(
-                              order.paymentStatus,
-                            )}`}
-                          >
-                            {formatStatus(order.paymentStatus)}
-                          </small>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="expand-order"
-                          onClick={() => toggleOrder(orderId)}
-                          aria-label="Toggle order details"
-                        >
-                          {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
-                        </button>
-                      </div>
-
-                      <AnimatePresence initial={false}>
-                        {isExpanded && (
-                          <motion.div
-                            className="order-details"
-                            initial={{
-                              height: 0,
-                              opacity: 0,
-                            }}
-                            animate={{
-                              height: "auto",
-                              opacity: 1,
-                            }}
-                            exit={{
-                              height: 0,
-                              opacity: 0,
-                            }}
-                          >
-                            <div className="order-items">
-                              <h3>Order Items</h3>
-
-                              {order.items?.map((item, itemIndex) => (
-                                <div
-                                  className="order-item"
-                                  key={item._id || `${orderId}-${itemIndex}`}
-                                >
-                                  <div className="item-image">
-                                    {item.product?.image ? (
-                                      <img
-                                        src={item.product.image}
-                                        alt={item.name}
-                                        onError={(event) => {
-                                          event.currentTarget.style.display =
-                                            "none";
-                                        }}
-                                      />
-                                    ) : (
-                                      <FaIceCreamFallback />
-                                    )}
-                                  </div>
-
-                                  <div className="item-info">
-                                    <strong>{item.name}</strong>
-
+                          <div className="order-card-actions">
+                            {canCancelOrder(
+                              order,
+                            ) && (
+                              <button
+                                type="button"
+                                className="quick-cancel-btn"
+                                onClick={() =>
+                                  openCancelConfirmation(
+                                    order,
+                                  )
+                                }
+                                disabled={
+                                  isCancelling
+                                }
+                                title="Cancel Order"
+                              >
+                                {isCancelling ? (
+                                  <>
+                                    <FaSpinner className="spin" />
                                     <span>
-                                      {item.quantity} ×{" "}
-                                      {formatCurrency(item.unitPrice)}
+                                      Cancelling
                                     </span>
-                                  </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaTimes />
+                                    <span>
+                                      Cancel
+                                    </span>
+                                  </>
+                                )}
+                              </button>
+                            )}
 
-                                  <strong className="item-total">
-                                    {formatCurrency(item.total)}
+                            <button
+                              type="button"
+                              className="expand-order"
+                              onClick={() =>
+                                toggleOrder(
+                                  orderId,
+                                )
+                              }
+                              aria-label="Toggle order details"
+                              title={
+                                isExpanded
+                                  ? "Hide details"
+                                  : "Show details"
+                              }
+                            >
+                              {isExpanded ? (
+                                <FaChevronUp />
+                              ) : (
+                                <FaChevronDown />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* =================================================
+                            EXPANDED DETAILS
+                        ================================================= */}
+
+                        <AnimatePresence
+                          initial={false}
+                        >
+                          {isExpanded && (
+                            <motion.div
+                              className="order-details"
+                              initial={{
+                                height: 0,
+                                opacity: 0,
+                              }}
+                              animate={{
+                                height: "auto",
+                                opacity: 1,
+                              }}
+                              exit={{
+                                height: 0,
+                                opacity: 0,
+                              }}
+                            >
+                              <div className="order-items">
+                                <h3>
+                                  Order Items
+                                </h3>
+
+                                {order.items?.map(
+                                  (
+                                    item,
+                                    itemIndex,
+                                  ) => (
+                                    <div
+                                      className="order-item"
+                                      key={
+                                        item._id ||
+                                        `${orderId}-${itemIndex}`
+                                      }
+                                    >
+                                      <div className="item-image">
+                                        {item
+                                          ?.product
+                                          ?.image ? (
+                                          <img
+                                            src={
+                                              item
+                                                .product
+                                                .image
+                                            }
+                                            alt={
+                                              item.name
+                                            }
+                                            onError={(
+                                              event,
+                                            ) => {
+                                              event.currentTarget.style.display =
+                                                "none";
+                                            }}
+                                          />
+                                        ) : (
+                                          <FaIceCreamFallback />
+                                        )}
+                                      </div>
+
+                                      <div className="item-info">
+                                        <strong>
+                                          {
+                                            item.name
+                                          }
+                                        </strong>
+
+                                        <span>
+                                          {
+                                            item.quantity
+                                          }{" "}
+                                          ×{" "}
+                                          {formatCurrency(
+                                            item.unitPrice,
+                                          )}
+                                        </span>
+                                      </div>
+
+                                      <strong className="item-total">
+                                        {formatCurrency(
+                                          item.total,
+                                        )}
+                                      </strong>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+
+                              {/* SUMMARY */}
+
+                              <div className="order-summary">
+                                <div>
+                                  <span>
+                                    Subtotal
+                                  </span>
+
+                                  <strong>
+                                    {formatCurrency(
+                                      order.subtotal,
+                                    )}
                                   </strong>
                                 </div>
-                              ))}
-                            </div>
 
-                            <div className="order-summary">
-                              <div>
-                                <span>Subtotal</span>
+                                <div>
+                                  <span>
+                                    Discount
+                                  </span>
 
-                                <strong>
-                                  {formatCurrency(order.subtotal)}
-                                </strong>
+                                  <strong>
+                                    -
+                                    {formatCurrency(
+                                      order.discountAmount,
+                                    )}
+                                  </strong>
+                                </div>
+
+                                <div>
+                                  <span>
+                                    Tax
+                                  </span>
+
+                                  <strong>
+                                    {formatCurrency(
+                                      order.taxAmount,
+                                    )}
+                                  </strong>
+                                </div>
+
+                                <div className="summary-total">
+                                  <span>
+                                    Grand Total
+                                  </span>
+
+                                  <strong>
+                                    {formatCurrency(
+                                      order.totalAmount,
+                                    )}
+                                  </strong>
+                                </div>
                               </div>
 
-                              <div>
-                                <span>Discount</span>
+                              {/* FOOTER */}
 
-                                <strong>
-                                  -{formatCurrency(order.discountAmount)}
-                                </strong>
-                              </div>
+                              <div className="order-footer">
+                                <div className="payment-info">
+                                  <span>
+                                    Payment Method
+                                  </span>
 
-                              <div>
-                                <span>Tax</span>
+                                  <strong>
+                                    {formatPaymentMethod(
+                                      order.paymentMethod,
+                                    )}
+                                  </strong>
+                                </div>
 
-                                <strong>
-                                  {formatCurrency(order.taxAmount)}
-                                </strong>
-                              </div>
-
-                              <div className="summary-total">
-                                <span>Grand Total</span>
-
-                                <strong>
-                                  {formatCurrency(order.totalAmount)}
-                                </strong>
-                              </div>
-                            </div>
-
-                            <div className="order-footer">
-                              <div className="payment-info">
-                                <span>Payment Method</span>
-
-                                <strong>
-                                  {formatPaymentMethod(order.paymentMethod)}
-                                </strong>
-                              </div>
-
-                              <div className="order-actions">
-                                <button
-                                  type="button"
-                                  onClick={() => handleViewOrder(order)}
-                                >
-                                  <FaEye />
-                                  View Details
-                                </button>
-
-                                {canCancelOrder(order) && (
+                                <div className="order-actions">
                                   <button
                                     type="button"
-                                    className="cancel-order-btn"
-                                    onClick={() => setCancelConfirmOrder(order)}
-                                    disabled={
-                                      cancellingOrderId === getOrderId(order)
+                                    onClick={() =>
+                                      handleViewOrder(
+                                        order,
+                                      )
                                     }
                                   >
-                                    {cancellingOrderId === getOrderId(order) ? (
-                                      <>
-                                        <FaSpinner className="spin" />
-                                        Cancelling...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <FaTimes />
-                                        Cancel Order
-                                      </>
-                                    )}
+                                    <FaEye />
+                                    View Details
                                   </button>
-                                )}
 
-                                <button
-                                  type="button"
-                                  className="reorder-btn"
-                                  onClick={() => handleReorder(order)}
-                                >
-                                  <FaRedo />
-                                  Reorder
-                                </button>
+                                  {canCancelOrder(
+                                    order,
+                                  ) && (
+                                    <button
+                                      type="button"
+                                      className="cancel-order-btn"
+                                      onClick={() =>
+                                        openCancelConfirmation(
+                                          order,
+                                        )
+                                      }
+                                      disabled={
+                                        isCancelling
+                                      }
+                                    >
+                                      {isCancelling ? (
+                                        <>
+                                          <FaSpinner className="spin" />
+                                          Cancelling...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <FaTimes />
+                                          Cancel Order
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="reorder-btn"
+                                    onClick={() =>
+                                      handleReorder(
+                                        order,
+                                      )
+                                    }
+                                  >
+                                    <FaRedo />
+                                    Reorder
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.article>
-                  );
-                })}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.article>
+                    );
+                  },
+                )}
               </AnimatePresence>
             </div>
           )}
         </section>
       </div>
 
-      {/* Order Details Modal */}
+      {/* =========================================================
+          ORDER DETAILS MODAL
+      ========================================================= */}
+
       <AnimatePresence>
         {selectedOrder && (
           <motion.div
             className="order-modal-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{
+              opacity: 0,
+            }}
+            animate={{
+              opacity: 1,
+            }}
+            exit={{
+              opacity: 0,
+            }}
             onClick={closeModal}
           >
             <motion.div
@@ -739,15 +1117,28 @@ const CustomerOrders = () => {
                 scale: 0.94,
                 y: 20,
               }}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) =>
+                event.stopPropagation()
+              }
             >
               <div className="modal-header">
                 <div>
-                  <span>ORDER DETAILS</span>
-                  <h2>{getOrderNumber(selectedOrder)}</h2>
+                  <span>
+                    ORDER DETAILS
+                  </span>
+
+                  <h2>
+                    {getOrderNumber(
+                      selectedOrder,
+                    )}
+                  </h2>
                 </div>
 
-                <button type="button" onClick={closeModal}>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  aria-label="Close order details"
+                >
                   <FaTimes />
                 </button>
               </div>
@@ -758,7 +1149,9 @@ const CustomerOrders = () => {
                     selectedOrder.status,
                   )}`}
                 >
-                  {formatStatus(selectedOrder.status)}
+                  {formatStatus(
+                    selectedOrder.status,
+                  )}
                 </span>
 
                 <span
@@ -766,53 +1159,113 @@ const CustomerOrders = () => {
                     selectedOrder.paymentStatus,
                   )}`}
                 >
-                  Payment: {formatStatus(selectedOrder.paymentStatus)}
+                  Payment:{" "}
+                  {formatStatus(
+                    selectedOrder.paymentStatus,
+                  )}
                 </span>
               </div>
 
               <div className="modal-items">
-                {selectedOrder.items?.map((item, index) => (
-                  <div className="modal-item" key={item._id || index}>
-                    <div>
-                      <strong>{item.name}</strong>
+                {selectedOrder.items?.map(
+                  (item, index) => (
+                    <div
+                      className="modal-item"
+                      key={
+                        item._id || index
+                      }
+                    >
+                      <div>
+                        <strong>
+                          {item.name}
+                        </strong>
 
-                      <span>
-                        {item.quantity} × {formatCurrency(item.unitPrice)}
-                      </span>
+                        <span>
+                          {item.quantity} ×{" "}
+                          {formatCurrency(
+                            item.unitPrice,
+                          )}
+                        </span>
+                      </div>
+
+                      <strong>
+                        {formatCurrency(
+                          item.total,
+                        )}
+                      </strong>
                     </div>
-
-                    <strong>{formatCurrency(item.total)}</strong>
-                  </div>
-                ))}
+                  ),
+                )}
               </div>
 
               <div className="modal-total">
-                <span>Amount Paid</span>
+                <span>
+                  Order Total
+                </span>
 
-                <strong>{formatCurrency(selectedOrder.totalAmount)}</strong>
+                <strong>
+                  {formatCurrency(
+                    selectedOrder.totalAmount,
+                  )}
+                </strong>
               </div>
 
               <div className="modal-date">
                 <FaCalendarAlt />
-                {getOrderDate(selectedOrder)} at {getOrderTime(selectedOrder)}
+
+                {getOrderDate(
+                  selectedOrder,
+                )}{" "}
+                at{" "}
+                {getOrderTime(
+                  selectedOrder,
+                )}
               </div>
+
+              {canCancelOrder(
+                selectedOrder,
+              ) && (
+                <div className="modal-cancel-section">
+                  <button
+                    type="button"
+                    className="modal-cancel-btn"
+                    onClick={() => {
+                      closeModal();
+                      openCancelConfirmation(
+                        selectedOrder,
+                      );
+                    }}
+                  >
+                    <FaTimes />
+                    Cancel This Order
+                  </button>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Cancel Confirmation Modal */}
+
+      {/* =========================================================
+          CANCEL CONFIRMATION MODAL
+      ========================================================= */}
+
       <AnimatePresence>
         {cancelConfirmOrder && (
           <motion.div
             className="cancel-modal-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => {
-              if (!cancellingOrderId) {
-                setCancelConfirmOrder(null);
-              }
+            initial={{
+              opacity: 0,
             }}
+            animate={{
+              opacity: 1,
+            }}
+            exit={{
+              opacity: 0,
+            }}
+            onClick={
+              closeCancelConfirmation
+            }
           >
             <motion.div
               className="cancel-modal"
@@ -831,34 +1284,53 @@ const CustomerOrders = () => {
                 scale: 0.94,
                 y: 20,
               }}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) =>
+                event.stopPropagation()
+              }
             >
               <div className="cancel-modal-icon">
                 <FaTimes />
               </div>
 
               <div className="cancel-modal-content">
-                <span className="cancel-modal-eyebrow">CANCEL ORDER</span>
+                <span className="cancel-modal-eyebrow">
+                  CANCEL ORDER
+                </span>
 
-                <h2>Cancel this order?</h2>
+                <h2>
+                  Cancel this order?
+                </h2>
 
                 <p>
-                  Are you sure you want to cancel{" "}
-                  <strong>{getOrderNumber(cancelConfirmOrder)}</strong>?
+                  Are you sure you want to
+                  cancel{" "}
+                  <strong>
+                    {getOrderNumber(
+                      cancelConfirmOrder,
+                    )}
+                  </strong>
+                  ?
                 </p>
 
                 <div className="cancel-order-summary">
-                  <span>Order Total</span>
+                  <span>
+                    Order Total
+                  </span>
 
                   <strong>
-                    {formatCurrency(cancelConfirmOrder.totalAmount)}
+                    {formatCurrency(
+                      cancelConfirmOrder.totalAmount,
+                    )}
                   </strong>
                 </div>
 
                 <div className="cancel-warning">
                   <FaClock />
 
-                  <span>This action cannot be undone.</span>
+                  <span>
+                    This action cannot be
+                    undone.
+                  </span>
                 </div>
               </div>
 
@@ -866,8 +1338,12 @@ const CustomerOrders = () => {
                 <button
                   type="button"
                   className="cancel-keep-btn"
-                  onClick={() => setCancelConfirmOrder(null)}
-                  disabled={!!cancellingOrderId}
+                  onClick={
+                    closeCancelConfirmation
+                  }
+                  disabled={
+                    !!cancellingOrderId
+                  }
                 >
                   Keep Order
                 </button>
@@ -875,8 +1351,14 @@ const CustomerOrders = () => {
                 <button
                   type="button"
                   className="cancel-confirm-btn"
-                  onClick={() => handleCancelOrder(cancelConfirmOrder)}
-                  disabled={!!cancellingOrderId}
+                  onClick={() =>
+                    handleCancelOrder(
+                      cancelConfirmOrder,
+                    )
+                  }
+                  disabled={
+                    !!cancellingOrderId
+                  }
                 >
                   {cancellingOrderId ? (
                     <>
@@ -899,10 +1381,14 @@ const CustomerOrders = () => {
   );
 };
 
-/*
- * Small fallback component kept local so we do not
- * introduce another icon dependency.
- */
-const FaIceCreamFallback = () => <span className="item-fallback-icon">🍦</span>;
+/* =============================================================
+   ICE CREAM FALLBACK
+============================================================= */
+
+const FaIceCreamFallback = () => (
+  <span className="item-fallback-icon">
+    🍦
+  </span>
+);
 
 export default CustomerOrders;
