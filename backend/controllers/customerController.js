@@ -1,689 +1,294 @@
-import mongoose from "mongoose";
-
-import Customer from "../models/Customer.js";
 import User from "../models/User.js";
+import Customer from "../models/Customer.js";
+
+import generateToken from "../utils/generateToken.js";
 
 /*
- * Helper: validate MongoDB ObjectId
+ * ============================================================
+ * ENSURE CUSTOMER PROFILE
+ * ============================================================
+ *
+ * Every authenticated customer must have a corresponding
+ * Customer document in the customers collection.
+ *
+ * User:
+ * - authentication
+ * - password
+ * - JWT identity
+ * - role
+ *
+ * Customer:
+ * - actual customer/business profile
+ * - address
+ * - customer statistics
+ * - order relationship
+ *
+ * This helper also repairs older customer accounts that were
+ * registered before Customer profiles were automatically created.
  */
-const isValidObjectId = (id) => {
-  return mongoose.Types.ObjectId.isValid(id);
-};
-
-/*
- * Helper: sanitize customer response
- */
-const formatCustomer = (customer) => {
-  if (!customer) {
+const ensureCustomerProfile = async (user) => {
+  if (!user || user.role !== "customer") {
     return null;
   }
 
-  return {
-    id: customer._id,
-    user: customer.user || null,
+  /*
+   * First try the proper relationship.
+   */
+  let customer = await Customer.findOne({
+    user: user._id,
+  });
 
-    name: customer.name,
-    phone: customer.phone,
-    email: customer.email,
-    address: customer.address,
+  if (customer) {
+    return customer;
+  }
 
-    customerType: customer.customerType,
-
-    totalOrders: customer.totalOrders,
-    totalSpent: customer.totalSpent,
-    lastOrderAt: customer.lastOrderAt,
-
-    notes: customer.notes,
-
-    isActive: customer.isActive,
-
-    createdAt: customer.createdAt,
-    updatedAt: customer.updatedAt,
-  };
-};
-
-/*
- * ============================================================
- * GET ALL CUSTOMERS
- * ============================================================
- *
- * GET /api/customers
- *
- * Admin + Staff
- *
- * Query parameters:
- *
- * ?search=john
- * ?customerType=registered
- * ?isActive=true
- * ?page=1
- * ?limit=20
- * ?sortBy=createdAt
- * ?sortOrder=desc
- */
-export const getCustomers = async (req, res) => {
-  try {
-    const {
-      search = "",
-      customerType = "",
-      isActive = "",
-      page = 1,
-      limit = 20,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = req.query;
-
-    const currentPage = Math.max(parseInt(page, 10) || 1, 1);
-
-    const requestedLimit =
-      parseInt(limit, 10) || 20;
-
-    const perPage = Math.min(
-      Math.max(requestedLimit, 1),
-      100
-    );
-
-    const filter = {};
-
-    /*
-     * Search by:
-     * - name
-     * - phone
-     * - email
-     */
-    if (search.trim()) {
-      const searchRegex = new RegExp(
-        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "i"
-      );
-
-      filter.$or = [
-        {
-          name: searchRegex,
-        },
-        {
-          phone: searchRegex,
-        },
-        {
-          email: searchRegex,
-        },
-      ];
-    }
-
-    /*
-     * Customer type filter
-     */
-    if (
-      customerType &&
-      ["registered", "walk-in"].includes(customerType)
-    ) {
-      filter.customerType = customerType;
-    }
-
-    /*
-     * Active/inactive filter
-     */
-    if (isActive !== "") {
-      if (isActive === "true") {
-        filter.isActive = true;
-      }
-
-      if (isActive === "false") {
-        filter.isActive = false;
-      }
-    }
-
-    /*
-     * Allowed sorting fields.
-     *
-     * This prevents arbitrary MongoDB sort fields
-     * from being supplied by the client.
-     */
-    const allowedSortFields = [
-      "name",
-      "createdAt",
-      "updatedAt",
-      "totalOrders",
-      "totalSpent",
-      "lastOrderAt",
-    ];
-
-    const safeSortBy = allowedSortFields.includes(sortBy)
-      ? sortBy
-      : "createdAt";
-
-    const safeSortOrder =
-      sortOrder === "asc" ? 1 : -1;
-
-    const skip =
-      (currentPage - 1) * perPage;
-
-    const [customers, totalCustomers] =
-      await Promise.all([
-        Customer.find(filter)
-          .populate(
-            "user",
-            "name email phone role isActive lastLogin"
-          )
-          .sort({
-            [safeSortBy]: safeSortOrder,
-          })
-          .skip(skip)
-          .limit(perPage)
-          .lean(),
-
-        Customer.countDocuments(filter),
-      ]);
-
-    const totalPages = Math.ceil(
-      totalCustomers / perPage
-    );
-
-    res.status(200).json({
-      success: true,
-
-      customers: customers.map(formatCustomer),
-
-      pagination: {
-        currentPage,
-        perPage,
-        totalCustomers,
-        totalPages,
-
-        hasNextPage:
-          currentPage < totalPages,
-
-        hasPreviousPage:
-          currentPage > 1,
-      },
-    });
-  } catch (error) {
-    console.error("Get customers error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to retrieve customers",
+  /*
+   * If the relationship is missing, check whether a customer
+   * profile already exists with the same email.
+   *
+   * This is important for existing accounts such as Customer01.
+   */
+  if (user.email) {
+    customer = await Customer.findOne({
+      email: user.email.toLowerCase(),
     });
   }
-};
 
-/*
- * ============================================================
- * GET CUSTOMER BY ID
- * ============================================================
- *
- * GET /api/customers/:id
- *
- * Admin + Staff
- */
-export const getCustomerById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid customer ID",
-      });
-    }
-
-    const customer = await Customer.findById(id).populate(
-      "user",
-      "name email phone role isActive lastLogin createdAt"
-    );
-
-    if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      customer: formatCustomer(customer),
-    });
-  } catch (error) {
-    console.error("Get customer error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to retrieve customer",
-    });
-  }
-};
-
-/*
- * ============================================================
- * CREATE CUSTOMER
- * ============================================================
- *
- * POST /api/customers
- *
- * Admin + Staff
- *
- * Used for:
- * - walk-in customers
- * - registered customer profile creation
- */
-export const createCustomer = async (req, res) => {
-  try {
-    const {
-      user,
-      name,
-      phone,
-      email,
-      address,
-      customerType,
-      notes,
-      isActive,
-    } = req.body;
-
+  if (customer) {
     /*
-     * Basic validation
-     */
-    if (!name || !name.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Customer name is required",
-      });
-    }
-
-    /*
-     * Validate user if provided.
-     */
-    let linkedUser = null;
-
-    if (user) {
-      if (!isValidObjectId(user)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid user ID",
-        });
-      }
-
-      linkedUser = await User.findById(user);
-
-      if (!linkedUser) {
-        return res.status(404).json({
-          success: false,
-          message: "Linked user account not found",
-        });
-      }
-
-      /*
-       * Customer accounts must be actual customers.
-       */
-      if (linkedUser.role !== "customer") {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Only users with the customer role can be linked to a customer profile",
-        });
-      }
-
-      /*
-       * Check whether this User already has
-       * a Customer profile.
-       */
-      const existingLinkedCustomer =
-        await Customer.findOne({
-          user: linkedUser._id,
-        });
-
-      if (existingLinkedCustomer) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "This user already has a customer profile",
-        });
-      }
-    }
-
-    /*
-     * Customer type.
+     * Existing customer profile found.
      *
-     * If a user is linked, the model automatically
-     * treats it as registered.
+     * Link it to the authenticated User account.
      */
-    const normalizedCustomerType =
-      user
-        ? "registered"
-        : customerType === "registered"
-        ? "registered"
-        : "walk-in";
+    customer.user = user._id;
+    customer.customerType = "registered";
 
     /*
-     * Registered customers should normally have
-     * an email address.
+     * Keep profile information synchronized when appropriate.
      */
-    if (
-      normalizedCustomerType === "registered" &&
-      !email &&
-      linkedUser
-    ) {
-      // Use email from linked User.
-      req.body.email = linkedUser.email;
+    if (!customer.name && user.name) {
+      customer.name = user.name;
     }
 
-    /*
-     * Check duplicate email only when supplied.
-     */
-    const normalizedEmail =
-      email?.trim().toLowerCase() ||
-      linkedUser?.email?.toLowerCase() ||
-      "";
-
-    if (normalizedEmail) {
-      const existingEmailCustomer =
-        await Customer.findOne({
-          email: normalizedEmail,
-        });
-
-      if (existingEmailCustomer) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A customer with this email already exists",
-        });
-      }
-    }
-
-    /*
-     * Phone duplicate check.
-     *
-     * We allow empty phone numbers because
-     * walk-in customers may not provide one.
-     */
-    const normalizedPhone =
-      phone?.trim() || "";
-
-    if (normalizedPhone) {
-      const existingPhoneCustomer =
-        await Customer.findOne({
-          phone: normalizedPhone,
-        });
-
-      if (existingPhoneCustomer) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A customer with this phone number already exists",
-        });
-      }
-    }
-
-    const customer = await Customer.create({
-      user: linkedUser?._id || null,
-
-      name:
-        name.trim() ||
-        linkedUser?.name ||
-        "Customer",
-
-      phone:
-        normalizedPhone ||
-        linkedUser?.phone ||
-        "",
-
-      email:
-        normalizedEmail ||
-        linkedUser?.email ||
-        "",
-
-      address:
-        address?.trim() || "",
-
-      customerType:
-        normalizedCustomerType,
-
-      notes:
-        notes?.trim() || "",
-
-      isActive:
-        typeof isActive === "boolean"
-          ? isActive
-          : true,
-    });
-
-    const populatedCustomer =
-      await Customer.findById(customer._id).populate(
-        "user",
-        "name email phone role isActive lastLogin"
-      );
-
-    res.status(201).json({
-      success: true,
-      message: "Customer created successfully",
-      customer: formatCustomer(populatedCustomer),
-    });
-  } catch (error) {
-    console.error("Create customer error:", error);
-
-    /*
-     * Handle MongoDB duplicate key errors.
-     */
-    if (error.code === 11000) {
-      const duplicateField =
-        Object.keys(error.keyPattern || {})[0];
-
-      let message =
-        "A customer with this information already exists";
-
-      if (duplicateField === "user") {
-        message =
-          "This user already has a customer profile";
-      }
-
-      if (duplicateField === "email") {
-        message =
-          "A customer with this email already exists";
-      }
-
-      res.status(409).json({
-        success: false,
-        message,
-      });
-
-      return;
-    }
-
-    /*
-     * Mongoose validation error.
-     */
-    if (error.name === "ValidationError") {
-      const messages = Object.values(
-        error.errors
-      ).map((item) => item.message);
-
-      return res.status(400).json({
-        success: false,
-        message: messages.join(", "),
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to create customer",
-    });
-  }
-};
-
-/*
- * ============================================================
- * UPDATE CUSTOMER
- * ============================================================
- *
- * PUT /api/customers/:id
- *
- * Admin + Staff
- *
- * Note:
- * Order statistics are intentionally NOT accepted
- * from this endpoint.
- *
- * totalOrders / totalSpent / lastOrderAt should later
- * be controlled by the Order/Payment system.
- */
-export const updateCustomer = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid customer ID",
-      });
-    }
-
-    const customer =
-      await Customer.findById(id);
-
-    if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message: "Customer not found",
-      });
-    }
-
-    const {
-      name,
-      phone,
-      email,
-      address,
-      notes,
-      isActive,
-    } = req.body;
-
-    /*
-     * Validate name.
-     */
-    if (
-      name !== undefined &&
-      (!name || !name.trim())
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Customer name cannot be empty",
-      });
-    }
-
-    /*
-     * Normalize incoming values.
-     */
-    const normalizedEmail =
-      email !== undefined
-        ? email.trim().toLowerCase()
-        : customer.email;
-
-    const normalizedPhone =
-      phone !== undefined
-        ? phone.trim()
-        : customer.phone;
-
-    /*
-     * Prevent duplicate email.
-     */
-    if (
-      normalizedEmail &&
-      normalizedEmail !== customer.email
-    ) {
-      const existingEmailCustomer =
-        await Customer.findOne({
-          email: normalizedEmail,
-          _id: {
-            $ne: customer._id,
-          },
-        });
-
-      if (existingEmailCustomer) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A customer with this email already exists",
-        });
-      }
-    }
-
-    /*
-     * Prevent duplicate phone.
-     */
-    if (
-      normalizedPhone &&
-      normalizedPhone !== customer.phone
-    ) {
-      const existingPhoneCustomer =
-        await Customer.findOne({
-          phone: normalizedPhone,
-          _id: {
-            $ne: customer._id,
-          },
-        });
-
-      if (existingPhoneCustomer) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "A customer with this phone number already exists",
-        });
-      }
-    }
-
-    /*
-     * Update editable fields.
-     */
-    if (name !== undefined) {
-      customer.name = name.trim();
-    }
-
-    if (phone !== undefined) {
-      customer.phone = normalizedPhone;
-    }
-
-    if (email !== undefined) {
-      customer.email = normalizedEmail;
-    }
-
-    if (address !== undefined) {
-      customer.address = address.trim();
-    }
-
-    if (notes !== undefined) {
-      customer.notes = notes.trim();
-    }
-
-    if (typeof isActive === "boolean") {
-      customer.isActive = isActive;
+    if (!customer.phone && user.phone) {
+      customer.phone = user.phone;
     }
 
     await customer.save();
 
-    const populatedCustomer =
-      await Customer.findById(customer._id).populate(
-        "user",
-        "name email phone role isActive lastLogin"
-      );
+    return customer;
+  }
 
-    res.status(200).json({
+  /*
+   * No customer profile exists at all.
+   *
+   * Create the actual customer profile in the customers
+   * collection.
+   */
+  customer = await Customer.create({
+    user: user._id,
+
+    name: user.name,
+
+    phone: user.phone || "",
+
+    email: user.email,
+
+    customerType: "registered",
+
+    address: "",
+
+    notes: "",
+
+    isActive: true,
+  });
+
+  return customer;
+};
+
+/*
+ * ============================================================
+ * REGISTER USER
+ * ============================================================
+ *
+ * POST /api/auth/register
+ *
+ * Public registration ALWAYS creates a customer account.
+ *
+ * Registration creates:
+ *
+ * 1. User authentication identity
+ * 2. Customer business profile
+ */
+export const registerUser = async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      phone,
+      password,
+    } = req.body;
+
+    /*
+     * Basic validation.
+     */
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Name, email and password are required",
+      });
+    }
+
+    const normalizedEmail =
+      email.trim().toLowerCase();
+
+    /*
+     * Check existing User account.
+     */
+    const existingUser =
+      await User.findOne({
+        email: normalizedEmail,
+      });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "An account with this email already exists",
+      });
+    }
+
+    /*
+     * Create authentication account.
+     */
+    const user = await User.create({
+      name: name.trim(),
+
+      email: normalizedEmail,
+
+      phone: phone?.trim() || "",
+
+      password,
+
+      /*
+       * Public registration ALWAYS creates customer.
+       *
+       * Admin/staff accounts are created separately.
+       */
+      role: "customer",
+    });
+
+    /*
+     * Create the actual customer profile.
+     *
+     * The profile lives in the customers collection.
+     */
+    let customer;
+
+    try {
+      customer = await Customer.create({
+        user: user._id,
+
+        name: user.name,
+
+        phone: user.phone || "",
+
+        email: user.email,
+
+        customerType: "registered",
+
+        address: "",
+
+        notes: "",
+
+        isActive: true,
+      });
+    } catch (customerError) {
+      /*
+       * If Customer creation fails, remove the newly-created
+       * User so registration does not leave an orphan account.
+       */
+      try {
+        await User.findByIdAndDelete(user._id);
+      } catch (rollbackError) {
+        console.error(
+          "Registration rollback error:",
+          rollbackError
+        );
+      }
+
+      throw customerError;
+    }
+
+    /*
+     * Generate authentication token.
+     */
+    const token = generateToken(user._id);
+
+    res.status(201).json({
       success: true,
-      message: "Customer updated successfully",
-      customer: formatCustomer(populatedCustomer),
+
+      message:
+        "Account created successfully",
+
+      token,
+
+      user: {
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        phone: user.phone,
+
+        role: user.role,
+
+        avatar: user.avatar,
+      },
+
+      /*
+       * Customer ID is useful for the frontend if needed.
+       */
+      customer: {
+        id: customer._id,
+
+        name: customer.name,
+
+        email: customer.email,
+
+        phone: customer.phone,
+
+        customerType:
+          customer.customerType,
+      },
     });
   } catch (error) {
-    console.error("Update customer error:", error);
+    console.error(
+      "Register error:",
+      error
+    );
 
+    /*
+     * MongoDB duplicate key.
+     */
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message:
-          "A customer with this information already exists",
+          "An account or customer with this information already exists",
       });
     }
 
+    /*
+     * Mongoose validation.
+     */
     if (error.name === "ValidationError") {
-      const messages = Object.values(
-        error.errors
-      ).map((item) => item.message);
+      const messages =
+        Object.values(error.errors).map(
+          (item) => item.message
+        );
 
       return res.status(400).json({
         success: false,
@@ -693,259 +298,268 @@ export const updateCustomer = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Unable to update customer",
+      message:
+        "Unable to create account",
     });
   }
 };
 
 /*
  * ============================================================
- * DEACTIVATE CUSTOMER
+ * LOGIN USER
  * ============================================================
  *
- * DELETE /api/customers/:id
- *
- * Admin only
- *
- * We use soft deletion rather than physically deleting
- * the customer because customer records can be referenced
- * by historical orders/invoices.
+ * POST /api/auth/login
  */
-export const deleteCustomer = async (req, res) => {
+export const loginUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const {
+      email,
+      password,
+    } = req.body;
 
-    if (!isValidObjectId(id)) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Invalid customer ID",
+        message:
+          "Email and password are required",
       });
     }
 
-    const customer =
-      await Customer.findById(id);
+    const normalizedEmail =
+      email.trim().toLowerCase();
 
-    if (!customer) {
-      return res.status(404).json({
+    /*
+     * Password is select:false, so explicitly request it.
+     */
+    const user =
+      await User.findOne({
+        email: normalizedEmail,
+      }).select("+password");
+
+    if (!user) {
+      return res.status(401).json({
         success: false,
-        message: "Customer not found",
+        message:
+          "Invalid email or password",
       });
     }
 
-    customer.isActive = false;
-
-    await customer.save();
-
-    res.status(200).json({
-      success: true,
-      message: "Customer deactivated successfully",
-    });
-  } catch (error) {
-    console.error("Delete customer error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Unable to deactivate customer",
-    });
-  }
-};
-
-/*
- * ============================================================
- * ACTIVATE CUSTOMER
- * ============================================================
- *
- * PATCH /api/customers/:id/activate
- *
- * Admin only
- */
-export const activateCustomer = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!isValidObjectId(id)) {
-      return res.status(400).json({
+    if (!user.isActive) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid customer ID",
+        message:
+          "Your account has been deactivated",
       });
     }
 
-    const customer =
-      await Customer.findById(id);
+    const isPasswordValid =
+      await user.comparePassword(password);
 
-    if (!customer) {
-      return res.status(404).json({
+    if (!isPasswordValid) {
+      return res.status(401).json({
         success: false,
-        message: "Customer not found",
+        message:
+          "Invalid email or password",
       });
     }
 
-    customer.isActive = true;
+    /*
+     * Update login timestamp.
+     */
+    user.lastLogin = new Date();
 
-    await customer.save();
+    await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: "Customer activated successfully",
-      customer: formatCustomer(customer),
-    });
-  } catch (error) {
-    console.error("Activate customer error:", error);
+    /*
+     * IMPORTANT:
+     *
+     * For customer accounts, automatically make sure
+     * the corresponding Customer profile exists.
+     *
+     * This repairs old accounts such as Customer01.
+     */
+    let customer = null;
 
-    res.status(500).json({
-      success: false,
-      message: "Unable to activate customer",
-    });
-  }
-};
+    if (user.role === "customer") {
+      customer =
+        await ensureCustomerProfile(user);
 
-/*
- * ============================================================
- * GET CUSTOMER STATISTICS
- * ============================================================
- *
- * GET /api/customers/stats/summary
- *
- * Admin + Staff
- */
-export const getCustomerStats = async (req, res) => {
-  try {
-    const [
-      totalCustomers,
-      activeCustomers,
-      registeredCustomers,
-      walkInCustomers,
-    ] = await Promise.all([
-      Customer.countDocuments(),
+      /*
+       * A deactivated Customer profile should not be allowed
+       * to use the customer portal even if the User account
+       * itself is active.
+       */
+      if (
+        customer &&
+        !customer.isActive
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your customer account has been deactivated",
+        });
+      }
+    }
 
-      Customer.countDocuments({
-        isActive: true,
-      }),
-
-      Customer.countDocuments({
-        customerType: "registered",
-      }),
-
-      Customer.countDocuments({
-        customerType: "walk-in",
-      }),
-    ]);
-
-    const spendingResult =
-      await Customer.aggregate([
-        {
-          $group: {
-            _id: null,
-
-            totalSpent: {
-              $sum: "$totalSpent",
-            },
-
-            totalOrders: {
-              $sum: "$totalOrders",
-            },
-          },
-        },
-      ]);
-
-    const totals =
-      spendingResult[0] || {
-        totalSpent: 0,
-        totalOrders: 0,
-      };
+    const token =
+      generateToken(user._id);
 
     res.status(200).json({
       success: true,
 
-      stats: {
-        totalCustomers,
-        activeCustomers,
-        registeredCustomers,
-        walkInCustomers,
+      message:
+        "Login successful",
 
-        totalOrders:
-          totals.totalOrders || 0,
+      token,
 
-        totalSpent:
-          totals.totalSpent || 0,
+      user: {
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        phone: user.phone,
+
+        role: user.role,
+
+        avatar: user.avatar,
+
+        lastLogin:
+          user.lastLogin,
       },
+
+      /*
+       * Customer information is returned separately.
+       */
+      customer: customer
+        ? {
+            id: customer._id,
+
+            name: customer.name,
+
+            email: customer.email,
+
+            phone: customer.phone,
+
+            address: customer.address,
+
+            customerType:
+              customer.customerType,
+
+            isActive:
+              customer.isActive,
+          }
+        : null,
     });
   } catch (error) {
     console.error(
-      "Get customer stats error:",
+      "Login error:",
       error
     );
 
     res.status(500).json({
       success: false,
       message:
-        "Unable to retrieve customer statistics",
+        "Unable to login",
     });
   }
 };
 
 /*
  * ============================================================
- * SEARCH CUSTOMER BY PHONE
+ * GET CURRENT USER
  * ============================================================
  *
- * GET /api/customers/phone/:phone
- *
- * Admin + Staff
- *
- * Useful for POS:
- *
- * Cashier enters phone number
- * ↓
- * Existing customer found
- * ↓
- * Add customer to bill
+ * GET /api/auth/me
  */
-export const getCustomerByPhone = async (
+export const getCurrentUser = async (
   req,
   res
 ) => {
   try {
-    const { phone } = req.params;
+    let customer = null;
 
-    if (!phone || !phone.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required",
-      });
-    }
-
-    const customer =
-      await Customer.findOne({
-        phone: phone.trim(),
-        isActive: true,
-      }).populate(
-        "user",
-        "name email phone role isActive"
-      );
-
-    if (!customer) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "No active customer found with this phone number",
-      });
+    /*
+     * If the authenticated identity is a customer,
+     * retrieve/repair the customer profile.
+     */
+    if (
+      req.user &&
+      req.user.role === "customer"
+    ) {
+      customer =
+        await ensureCustomerProfile(
+          req.user
+        );
     }
 
     res.status(200).json({
       success: true,
-      customer: formatCustomer(customer),
+
+      user: {
+        id: req.user._id,
+
+        name: req.user.name,
+
+        email: req.user.email,
+
+        phone: req.user.phone,
+
+        role: req.user.role,
+
+        avatar: req.user.avatar,
+
+        isActive:
+          req.user.isActive,
+
+        lastLogin:
+          req.user.lastLogin,
+
+        createdAt:
+          req.user.createdAt,
+      },
+
+      customer: customer
+        ? {
+            id: customer._id,
+
+            name: customer.name,
+
+            email: customer.email,
+
+            phone: customer.phone,
+
+            address: customer.address,
+
+            customerType:
+              customer.customerType,
+
+            totalOrders:
+              customer.totalOrders,
+
+            totalSpent:
+              customer.totalSpent,
+
+            lastOrderAt:
+              customer.lastOrderAt,
+
+            isActive:
+              customer.isActive,
+          }
+        : null,
     });
   } catch (error) {
     console.error(
-      "Get customer by phone error:",
+      "Current user error:",
       error
     );
 
     res.status(500).json({
       success: false,
       message:
-        "Unable to search customer by phone",
+        "Unable to retrieve user",
     });
   }
 };
