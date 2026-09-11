@@ -75,20 +75,16 @@ const paymentSchema = new mongoose.Schema(
     razorpayOrderId: {
       type: String,
       trim: true,
-      default: null,
-      sparse: true,
-      unique: true,
-      index: true,
     },
 
     // Razorpay Payment ID
+    //
+    // IMPORTANT:
+    // This does not exist when a Razorpay order is first created.
+    // The partial unique index below only indexes actual string IDs.
     razorpayPaymentId: {
       type: String,
       trim: true,
-      default: null,
-      sparse: true,
-      unique: true,
-      index: true,
     },
 
     // Signature returned by Razorpay Checkout
@@ -208,13 +204,56 @@ paymentSchema.index({
 
 /*
 |--------------------------------------------------------------------------
+| Razorpay Unique Indexes
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+| Only actual string Razorpay IDs are indexed.
+|
+| This allows multiple payment records to temporarily have:
+| - no razorpayOrderId
+| - no razorpayPaymentId
+|
+| But once an actual Razorpay ID exists, it must be unique.
+|--------------------------------------------------------------------------
+*/
+
+paymentSchema.index(
+  { razorpayOrderId: 1 },
+  {
+    name: "razorpayOrderId_unique",
+    unique: true,
+    partialFilterExpression: {
+      razorpayOrderId: {
+        $type: "string",
+      },
+    },
+  }
+);
+
+paymentSchema.index(
+  { razorpayPaymentId: 1 },
+  {
+    name: "razorpayPaymentId_unique",
+    unique: true,
+    partialFilterExpression: {
+      razorpayPaymentId: {
+        $type: "string",
+      },
+    },
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
 | Validation
 |--------------------------------------------------------------------------
 */
 
 paymentSchema.pre("validate", function (next) {
   if (this.amount !== undefined && this.amount !== null) {
-    this.amount = Math.round(Number(this.amount) * 100) / 100;
+    this.amount =
+      Math.round(Number(this.amount) * 100) / 100;
   }
 
   if (
@@ -230,7 +269,7 @@ paymentSchema.pre("validate", function (next) {
 
 /*
 |--------------------------------------------------------------------------
-| Instance helpers
+| Instance Helpers
 |--------------------------------------------------------------------------
 */
 
@@ -245,6 +284,9 @@ paymentSchema.methods.isRefunded = function () {
   );
 };
 
-const Payment = mongoose.model("Payment", paymentSchema);
+const Payment = mongoose.model(
+  "Payment",
+  paymentSchema
+);
 
 export default Payment;
