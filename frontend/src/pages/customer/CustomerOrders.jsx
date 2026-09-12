@@ -1,3 +1,5 @@
+// frontend/src/pages/customer/CustomerOrders.jsx
+
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -38,26 +40,34 @@ const CustomerOrders = () => {
   const [cancellingOrderId, setCancellingOrderId] = useState(null);
   const [cancelConfirmOrder, setCancelConfirmOrder] = useState(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
   /* =========================================================
      FETCH ORDERS
   ========================================================= */
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
 
       const response = await api.get("/orders/my-orders");
+
       const data = response?.data;
 
       if (data?.success) {
-        setOrders(Array.isArray(data.orders) ? data.orders : []);
+        const receivedOrders = Array.isArray(data.orders)
+          ? data.orders
+          : [];
+
+        setOrders(receivedOrders);
       } else {
         setOrders([]);
-        toast.error(data?.message || "Unable to load orders");
+
+        toast.error(
+          data?.message || "Unable to load your orders",
+        );
       }
     } catch (error) {
       console.error("Customer orders error:", error);
@@ -74,18 +84,23 @@ const CustomerOrders = () => {
   };
 
   /* =========================================================
-     HELPERS
+     ORDER HELPERS
   ========================================================= */
 
   const getOrderId = (order) => {
-    return order?._id || order?.id;
+    return order?._id || order?.id || null;
   };
 
   const getOrderNumber = (order) => {
-    return (
-      order?.orderNumber ||
-      `#${getOrderId(order)?.slice(-6) || "UNKNOWN"}`
-    );
+    const orderNumber = order?.orderNumber;
+
+    if (orderNumber) {
+      return orderNumber;
+    }
+
+    const id = getOrderId(order);
+
+    return id ? `#${id.slice(-6).toUpperCase()}` : "#UNKNOWN";
   };
 
   const getOrderDate = (order) => {
@@ -93,7 +108,13 @@ const CustomerOrders = () => {
       return "Date unavailable";
     }
 
-    return new Date(order.createdAt).toLocaleDateString("en-IN", {
+    const date = new Date(order.createdAt);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Date unavailable";
+    }
+
+    return date.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -105,7 +126,13 @@ const CustomerOrders = () => {
       return "";
     }
 
-    return new Date(order.createdAt).toLocaleTimeString("en-IN", {
+    const date = new Date(order.createdAt);
+
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleTimeString("en-IN", {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -116,7 +143,7 @@ const CustomerOrders = () => {
       return "Pending";
     }
 
-    return status
+    return String(status)
       .replace(/_/g, " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
   };
@@ -130,13 +157,17 @@ const CustomerOrders = () => {
       return "Razorpay";
     }
 
-    return method
+    return String(method)
       .replace(/_/g, " ")
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
   };
 
   const formatCurrency = (amount) => {
-    return `₹${Number(amount || 0).toLocaleString("en-IN", {
+    const numericAmount = Number(amount);
+
+    return `₹${(
+      Number.isFinite(numericAmount) ? numericAmount : 0
+    ).toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -148,10 +179,15 @@ const CustomerOrders = () => {
     }
 
     return order.items.reduce(
-      (total, item) => total + Number(item?.quantity || 0),
+      (total, item) =>
+        total + Number(item?.quantity || 0),
       0,
     );
   };
+
+  /* =========================================================
+     STATUS CLASSES
+  ========================================================= */
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -173,6 +209,9 @@ const CustomerOrders = () => {
       case "refunded":
         return "refunded";
 
+      case "draft":
+        return "default";
+
       default:
         return "default";
     }
@@ -192,6 +231,9 @@ const CustomerOrders = () => {
       case "cancelled":
         return "cancelled";
 
+      case "partially_refunded":
+        return "refunded";
+
       default:
         return "pending";
     }
@@ -206,31 +248,54 @@ const CustomerOrders = () => {
       return false;
     }
 
+    const orderStatus = String(
+      order.status || "",
+    ).toLowerCase();
+
+    const paymentStatus = String(
+      order.paymentStatus || "pending",
+    ).toLowerCase();
+
+    /*
+     * Customers can cancel only while the order
+     * is still pending or confirmed.
+     */
     const cancellableStatuses = [
       "pending",
       "confirmed",
     ];
 
+    /*
+     * Paid orders must never show the customer
+     * cancellation action.
+     */
+    const blockedPaymentStatuses = [
+      "paid",
+      "refunded",
+      "cancelled",
+      "partially_refunded",
+    ];
+
     return (
-      cancellableStatuses.includes(order.status) &&
-      order.paymentStatus !== "paid" &&
-      order.paymentStatus !== "refunded" &&
-      order.paymentStatus !== "cancelled"
+      cancellableStatuses.includes(orderStatus) &&
+      !blockedPaymentStatuses.includes(paymentStatus)
     );
   };
 
   /* =========================================================
-     FILTERING
+     FILTER ORDERS
   ========================================================= */
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const orderNumber = getOrderNumber(order).toLowerCase();
+    const searchValue = search.trim().toLowerCase();
 
-      const searchValue = search.trim().toLowerCase();
+    return orders.filter((order) => {
+      const orderNumber =
+        getOrderNumber(order).toLowerCase();
 
       const matchesSearch =
-        !searchValue || orderNumber.includes(searchValue);
+        !searchValue ||
+        orderNumber.includes(searchValue);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -248,20 +313,25 @@ const CustomerOrders = () => {
     const total = orders.length;
 
     const completed = orders.filter(
-      (order) => order.status === "completed",
+      (order) => order?.status === "completed",
     ).length;
 
     const pending = orders.filter((order) =>
-      ["pending", "confirmed", "processing"].includes(
-        order.status,
-      ),
+      [
+        "pending",
+        "confirmed",
+        "processing",
+      ].includes(order?.status),
     ).length;
 
     const spent = orders
-      .filter((order) => order.paymentStatus === "paid")
+      .filter(
+        (order) =>
+          order?.paymentStatus === "paid",
+      )
       .reduce(
         (sum, order) =>
-          sum + Number(order.totalAmount || 0),
+          sum + Number(order?.totalAmount || 0),
         0,
       );
 
@@ -288,11 +358,15 @@ const CustomerOrders = () => {
   };
 
   const closeModal = () => {
+    if (cancellingOrderId) {
+      return;
+    }
+
     setSelectedOrder(null);
   };
 
   /* =========================================================
-     CANCEL ORDER
+     CANCEL CONFIRMATION
   ========================================================= */
 
   const openCancelConfirmation = (order) => {
@@ -300,6 +374,7 @@ const CustomerOrders = () => {
       toast.info(
         "This order can no longer be cancelled.",
       );
+
       return;
     }
 
@@ -314,11 +389,25 @@ const CustomerOrders = () => {
     setCancelConfirmOrder(null);
   };
 
+  /* =========================================================
+     CANCEL ORDER
+  ========================================================= */
+
   const handleCancelOrder = async (order) => {
     const orderId = getOrderId(order);
 
     if (!orderId) {
-      toast.error("Invalid order");
+      toast.error("Invalid order.");
+      return;
+    }
+
+    if (!canCancelOrder(order)) {
+      toast.info(
+        "This order can no longer be cancelled.",
+      );
+
+      setCancelConfirmOrder(null);
+
       return;
     }
 
@@ -329,47 +418,64 @@ const CustomerOrders = () => {
         `/orders/${orderId}/cancel`,
       );
 
-      if (response?.data?.success) {
-        const updatedOrder = response.data.order;
+      const data = response?.data;
 
-        const normalizedOrder = {
-          ...order,
-          ...(updatedOrder || {}),
-          status: "cancelled",
-          paymentStatus:
-            updatedOrder?.paymentStatus || "cancelled",
-        };
-
-        setOrders((currentOrders) =>
-          currentOrders.map((item) =>
-            getOrderId(item) === orderId
-              ? normalizedOrder
-              : item,
-          ),
-        );
-
-        if (
-          selectedOrder &&
-          getOrderId(selectedOrder) === orderId
-        ) {
-          setSelectedOrder(normalizedOrder);
-        }
-
-        if (expandedOrder === orderId) {
-          setExpandedOrder(null);
-        }
-
-        setCancelConfirmOrder(null);
-
-        toast.success(
-          "Order cancelled successfully.",
-        );
-      } else {
+      if (!data?.success) {
         toast.error(
-          response?.data?.message ||
-            "Unable to cancel order",
+          data?.message ||
+            "Unable to cancel order.",
         );
+
+        return;
       }
+
+      const serverOrder = data?.order;
+
+      /*
+       * Update the order immediately in local state.
+       * This avoids waiting for a second API request
+       * just to update the visible status.
+       */
+      const updatedOrder = {
+        ...order,
+        ...(serverOrder || {}),
+        status: "cancelled",
+        paymentStatus:
+          serverOrder?.paymentStatus ||
+          "cancelled",
+      };
+
+      setOrders((currentOrders) =>
+        currentOrders.map((currentOrder) =>
+          getOrderId(currentOrder) === orderId
+            ? updatedOrder
+            : currentOrder,
+        ),
+      );
+
+      /*
+       * Keep the details modal synchronized if it
+       * was displaying the cancelled order.
+       */
+      if (
+        selectedOrder &&
+        getOrderId(selectedOrder) === orderId
+      ) {
+        setSelectedOrder(updatedOrder);
+      }
+
+      /*
+       * Collapse the order card after cancellation.
+       */
+      if (expandedOrder === orderId) {
+        setExpandedOrder(null);
+      }
+
+      setCancelConfirmOrder(null);
+
+      toast.success(
+        "Order cancelled successfully.",
+      );
     } catch (error) {
       console.error(
         "Cancel order error:",
@@ -378,7 +484,7 @@ const CustomerOrders = () => {
 
       toast.error(
         error?.response?.data?.message ||
-          "Unable to cancel order",
+          "Unable to cancel order.",
       );
     } finally {
       setCancellingOrderId(null);
@@ -390,10 +496,14 @@ const CustomerOrders = () => {
   ========================================================= */
 
   const handleReorder = (order) => {
-    if (!order?.items?.length) {
+    if (
+      !Array.isArray(order?.items) ||
+      order.items.length === 0
+    ) {
       toast.error(
         "This order cannot be reordered.",
       );
+
       return;
     }
 
@@ -433,18 +543,19 @@ const CustomerOrders = () => {
           : "You haven't placed any orders yet."}
       </p>
 
-      {!search && statusFilter === "all" && (
-        <button
-          type="button"
-          className="start-shopping-btn"
-          onClick={() =>
-            navigate("/customer/products")
-          }
-        >
-          <FaShoppingBag />
-          Start Shopping
-        </button>
-      )}
+      {!search &&
+        statusFilter === "all" && (
+          <button
+            type="button"
+            className="start-shopping-btn"
+            onClick={() =>
+              navigate("/customer/products")
+            }
+          >
+            <FaShoppingBag />
+            Start Shopping
+          </button>
+        )}
     </motion.div>
   );
 
@@ -560,6 +671,7 @@ const CustomerOrders = () => {
 
             <div>
               <span>Total Spent</span>
+
               <strong>
                 {formatCurrency(stats.spent)}
               </strong>
@@ -614,7 +726,9 @@ const CustomerOrders = () => {
             <select
               value={statusFilter}
               onChange={(event) =>
-                setStatusFilter(event.target.value)
+                setStatusFilter(
+                  event.target.value,
+                )
               }
             >
               <option value="all">
@@ -664,7 +778,7 @@ const CustomerOrders = () => {
         </motion.section>
 
         {/* =====================================================
-            ORDERS
+            ORDERS LIST
         ===================================================== */}
 
         <section className="orders-list-section">
@@ -693,6 +807,9 @@ const CustomerOrders = () => {
                     const isCancelling =
                       cancellingOrderId ===
                       orderId;
+
+                    const cancellable =
+                      canCancelOrder(order);
 
                     return (
                       <motion.article
@@ -742,6 +859,7 @@ const CustomerOrders = () => {
                             <div className="order-meta">
                               <span>
                                 <FaCalendarAlt />
+
                                 {getOrderDate(
                                   order,
                                 )}
@@ -749,6 +867,7 @@ const CustomerOrders = () => {
 
                               <span>
                                 <FaClock />
+
                                 {getOrderTime(
                                   order,
                                 )}
@@ -756,6 +875,7 @@ const CustomerOrders = () => {
 
                               <span>
                                 <FaBoxOpen />
+
                                 {getItemCount(
                                   order,
                                 )}{" "}
@@ -793,9 +913,7 @@ const CustomerOrders = () => {
                           ================================================= */}
 
                           <div className="order-card-actions">
-                            {canCancelOrder(
-                              order,
-                            ) && (
+                            {cancellable && (
                               <button
                                 type="button"
                                 className="quick-cancel-btn"
@@ -805,13 +923,15 @@ const CustomerOrders = () => {
                                   )
                                 }
                                 disabled={
-                                  isCancelling
+                                  isCancelling ||
+                                  !!cancellingOrderId
                                 }
                                 title="Cancel Order"
                               >
                                 {isCancelling ? (
                                   <>
                                     <FaSpinner className="spin" />
+
                                     <span>
                                       Cancelling
                                     </span>
@@ -819,6 +939,7 @@ const CustomerOrders = () => {
                                 ) : (
                                   <>
                                     <FaTimes />
+
                                     <span>
                                       Cancel
                                     </span>
@@ -835,7 +956,11 @@ const CustomerOrders = () => {
                                   orderId,
                                 )
                               }
-                              aria-label="Toggle order details"
+                              aria-label={
+                                isExpanded
+                                  ? "Hide order details"
+                                  : "Show order details"
+                              }
                               title={
                                 isExpanded
                                   ? "Hide details"
@@ -879,72 +1004,77 @@ const CustomerOrders = () => {
                                   Order Items
                                 </h3>
 
-                                {order.items?.map(
-                                  (
-                                    item,
-                                    itemIndex,
-                                  ) => (
-                                    <div
-                                      className="order-item"
-                                      key={
-                                        item._id ||
-                                        `${orderId}-${itemIndex}`
-                                      }
-                                    >
-                                      <div className="item-image">
-                                        {item
-                                          ?.product
-                                          ?.image ? (
-                                          <img
-                                            src={
-                                              item
-                                                .product
-                                                .image
-                                            }
-                                            alt={
-                                              item.name
-                                            }
-                                            onError={(
-                                              event,
-                                            ) => {
-                                              event.currentTarget.style.display =
-                                                "none";
-                                            }}
-                                          />
-                                        ) : (
-                                          <FaIceCreamFallback />
-                                        )}
-                                      </div>
-
-                                      <div className="item-info">
-                                        <strong>
-                                          {
-                                            item.name
-                                          }
-                                        </strong>
-
-                                        <span>
-                                          {
-                                            item.quantity
-                                          }{" "}
-                                          ×{" "}
-                                          {formatCurrency(
-                                            item.unitPrice,
+                                {Array.isArray(
+                                  order.items,
+                                ) &&
+                                  order.items.map(
+                                    (
+                                      item,
+                                      itemIndex,
+                                    ) => (
+                                      <div
+                                        className="order-item"
+                                        key={
+                                          item._id ||
+                                          `${orderId}-${itemIndex}`
+                                        }
+                                      >
+                                        <div className="item-image">
+                                          {item
+                                            ?.product
+                                            ?.image ? (
+                                            <img
+                                              src={
+                                                item
+                                                  .product
+                                                  .image
+                                              }
+                                              alt={
+                                                item.name ||
+                                                "Ice cream"
+                                              }
+                                              onError={(
+                                                event,
+                                              ) => {
+                                                event.currentTarget.style.display =
+                                                  "none";
+                                              }}
+                                            />
+                                          ) : (
+                                            <FaIceCreamFallback />
                                           )}
-                                        </span>
-                                      </div>
+                                        </div>
 
-                                      <strong className="item-total">
-                                        {formatCurrency(
-                                          item.total,
-                                        )}
-                                      </strong>
-                                    </div>
-                                  ),
-                                )}
+                                        <div className="item-info">
+                                          <strong>
+                                            {item.name ||
+                                              "Ice Cream"}
+                                          </strong>
+
+                                          <span>
+                                            {
+                                              item.quantity
+                                            }{" "}
+                                            ×{" "}
+                                            {formatCurrency(
+                                              item.unitPrice,
+                                            )}
+                                          </span>
+                                        </div>
+
+                                        <strong className="item-total">
+                                          {formatCurrency(
+                                            item.total,
+                                          )}
+                                        </strong>
+                                      </div>
+                                    ),
+                                  )}
                               </div>
 
-                              {/* SUMMARY */}
+                              {/* =================================================
+                                  ORDER SUMMARY
+                              ================================================= */}
 
                               <div className="order-summary">
                                 <div>
@@ -997,7 +1127,9 @@ const CustomerOrders = () => {
                                 </div>
                               </div>
 
-                              {/* FOOTER */}
+                              {/* =================================================
+                                  ORDER FOOTER
+                              ================================================= */}
 
                               <div className="order-footer">
                                 <div className="payment-info">
@@ -1025,9 +1157,7 @@ const CustomerOrders = () => {
                                     View Details
                                   </button>
 
-                                  {canCancelOrder(
-                                    order,
-                                  ) && (
+                                  {cancellable && (
                                     <button
                                       type="button"
                                       className="cancel-order-btn"
@@ -1037,7 +1167,8 @@ const CustomerOrders = () => {
                                         )
                                       }
                                       disabled={
-                                        isCancelling
+                                        isCancelling ||
+                                        !!cancellingOrderId
                                       }
                                     >
                                       {isCancelling ? (
@@ -1167,35 +1298,39 @@ const CustomerOrders = () => {
               </div>
 
               <div className="modal-items">
-                {selectedOrder.items?.map(
-                  (item, index) => (
-                    <div
-                      className="modal-item"
-                      key={
-                        item._id || index
-                      }
-                    >
-                      <div>
+                {Array.isArray(
+                  selectedOrder.items,
+                ) &&
+                  selectedOrder.items.map(
+                    (item, index) => (
+                      <div
+                        className="modal-item"
+                        key={
+                          item._id || index
+                        }
+                      >
+                        <div>
+                          <strong>
+                            {item.name ||
+                              "Ice Cream"}
+                          </strong>
+
+                          <span>
+                            {item.quantity} ×{" "}
+                            {formatCurrency(
+                              item.unitPrice,
+                            )}
+                          </span>
+                        </div>
+
                         <strong>
-                          {item.name}
-                        </strong>
-
-                        <span>
-                          {item.quantity} ×{" "}
                           {formatCurrency(
-                            item.unitPrice,
+                            item.total,
                           )}
-                        </span>
+                        </strong>
                       </div>
-
-                      <strong>
-                        {formatCurrency(
-                          item.total,
-                        )}
-                      </strong>
-                    </div>
-                  ),
-                )}
+                    ),
+                  )}
               </div>
 
               <div className="modal-total">
@@ -1230,11 +1365,15 @@ const CustomerOrders = () => {
                     type="button"
                     className="modal-cancel-btn"
                     onClick={() => {
-                      closeModal();
+                      setSelectedOrder(null);
+
                       openCancelConfirmation(
                         selectedOrder,
                       );
                     }}
+                    disabled={
+                      !!cancellingOrderId
+                    }
                   >
                     <FaTimes />
                     Cancel This Order
