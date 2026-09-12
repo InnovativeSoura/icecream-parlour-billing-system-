@@ -1,16 +1,14 @@
-// backend/routes/orderRoutes.js
-
 import express from "express";
 
 import {
-  getMyOrders,
-  createCustomerOrder,
-  getOrderStats,
-  getOrders,
   createOrder,
+  createCustomerOrder,
+  getOrders,
+  getMyOrders,
   getOrderById,
   updateOrderStatus,
   cancelOrder,
+  getOrderStats,
 } from "../controllers/orderController.js";
 
 import {
@@ -21,12 +19,15 @@ import {
 const router = express.Router();
 
 /*
-|--------------------------------------------------------------------------
-| CUSTOMER ROUTES
-|--------------------------------------------------------------------------
-*/
+ * ============================================================
+ * CUSTOMER ROUTES
+ * ============================================================
+ */
 
-// Customer order history
+/*
+ * Get logged-in customer's orders
+ * GET /api/orders/my-orders
+ */
 router.get(
   "/my-orders",
   protect,
@@ -34,7 +35,10 @@ router.get(
   getMyOrders
 );
 
-// Customer creates online order
+/*
+ * Create online order from customer portal
+ * POST /api/orders/customer
+ */
 router.post(
   "/customer",
   protect,
@@ -44,12 +48,15 @@ router.post(
 
 
 /*
-|--------------------------------------------------------------------------
-| ADMIN / STAFF ROUTES
-|--------------------------------------------------------------------------
-*/
+ * ============================================================
+ * ADMIN / STAFF ROUTES
+ * ============================================================
+ */
 
-// Order statistics
+/*
+ * Order statistics
+ * GET /api/orders/stats/summary
+ */
 router.get(
   "/stats/summary",
   protect,
@@ -57,7 +64,10 @@ router.get(
   getOrderStats
 );
 
-// All orders
+/*
+ * Get all orders
+ * GET /api/orders
+ */
 router.get(
   "/",
   protect,
@@ -65,7 +75,10 @@ router.get(
   getOrders
 );
 
-// Create POS order
+/*
+ * Create POS order
+ * POST /api/orders
+ */
 router.post(
   "/",
   protect,
@@ -75,12 +88,15 @@ router.post(
 
 
 /*
-|--------------------------------------------------------------------------
-| SHARED ORDER ROUTES
-|--------------------------------------------------------------------------
-*/
+ * ============================================================
+ * INDIVIDUAL ORDER ROUTES
+ * ============================================================
+ */
 
-// Get individual order
+/*
+ * Get a specific order
+ * GET /api/orders/:id
+ */
 router.get(
   "/:id",
   protect,
@@ -88,8 +104,12 @@ router.get(
   getOrderById
 );
 
-// Update order status
-// Admin / Staff only
+/*
+ * Update order status
+ * PATCH /api/orders/:id/status
+ *
+ * Admin + Staff only
+ */
 router.patch(
   "/:id/status",
   protect,
@@ -97,10 +117,14 @@ router.patch(
   updateOrderStatus
 );
 
-// Cancel order
-// Admin / Staff / Customer
-// Customer ownership and cancellation rules
-// are enforced inside cancelOrder.
+/*
+ * Cancel order
+ * PATCH /api/orders/:id/cancel
+ *
+ * Admin + Staff + Customer
+ *
+ * Customer ownership is checked inside cancelOrder().
+ */
 router.patch(
   "/:id/cancel",
   protect,

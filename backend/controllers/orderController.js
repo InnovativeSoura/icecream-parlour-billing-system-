@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
@@ -1793,39 +1794,54 @@ export const cancelOrder = async (req, res) => {
     }
 
     /*
-     * CUSTOMER OWNERSHIP CHECK
+     * ============================================================
+     * CUSTOMER OWNERSHIP
+     * ============================================================
      *
-     * Customers can cancel only their own orders.
+     * Resolve the authenticated customer through the same helper
+     * used by customer order creation / retrieval.
+     *
+     * This supports accounts where the Customer document is linked
+     * through the User ID as well as accounts that need email fallback.
      */
     if (req.user.role === "customer") {
-      const customer = await Customer.findOne({
-        user: req.user._id,
-      }).select("_id");
+      const customer = await resolveAuthenticatedCustomer(req.user);
+
+      if (!customer) {
+        return res.status(403).json({
+          success: false,
+          message: "Customer profile not found for this account",
+        });
+      }
 
       if (
-        !customer ||
         !order.customer ||
-        order.customer.toString() !==
-          customer._id.toString()
+        order.customer.toString() !== customer._id.toString()
       ) {
         return res.status(403).json({
           success: false,
-          message:
-            "You do not have permission to cancel this order",
+          message: "You do not have permission to cancel this order",
+        });
+      }
+
+      /*
+       * Customers can cancel only orders that are still pending
+       * or confirmed.
+       */
+      if (!["pending", "confirmed"].includes(order.status)) {
+        return res.status(400).json({
+          success: false,
+          message: "This order can no longer be cancelled",
         });
       }
     }
 
     /*
-     * Orders that have already reached these states
-     * cannot be cancelled through the normal cancel flow.
+     * Orders that are already completed, cancelled, or refunded
+     * cannot be cancelled again.
      */
     if (
-      [
-        "completed",
-        "cancelled",
-        "refunded",
-      ].includes(order.status)
+      ["completed", "cancelled", "refunded"].includes(order.status)
     ) {
       return res.status(400).json({
         success: false,
@@ -1834,10 +1850,8 @@ export const cancelOrder = async (req, res) => {
     }
 
     /*
-     * Once a Razorpay payment has been successfully
-     * captured, cancellation should NOT silently mark
-     * the order cancelled. A refund workflow should be
-     * used instead.
+     * Never silently cancel an already-paid order.
+     * A paid order must go through a refund workflow.
      */
     if (order.paymentStatus === "paid") {
       return res.status(400).json({
@@ -1848,27 +1862,15 @@ export const cancelOrder = async (req, res) => {
     }
 
     /*
-     * Customer cancellation is allowed only while
-     * the order is still pending or confirmed.
-     *
-     * Staff/admin can also cancel processing orders.
+     * Cancel the order.
      */
-    if (
-      req.user.role === "customer" &&
-      !["pending", "confirmed"].includes(order.status)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "This order can no longer be cancelled",
-      });
-    }
-
     order.status = "cancelled";
     order.paymentStatus = "cancelled";
+    order.cancelledAt = new Date();
 
     /*
-     * Keep payment method intact for audit/history.
+     * Preserve the existing payment method if one exists.
+     * For an unpaid order with no method, explicitly mark it unpaid.
      */
     if (!order.paymentMethod) {
       order.paymentMethod = "unpaid";
