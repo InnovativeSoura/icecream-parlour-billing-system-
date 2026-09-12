@@ -243,38 +243,16 @@ const CustomerOrders = () => {
       return false;
     }
 
-    /*
-     * Some older customer orders may not have an explicit
-     * `status` field in the API response.
-     *
-     * The UI already treats a missing status as "Pending",
-     * so cancellation must use the same fallback.
-     */
-    const rawOrderStatus = String(order?.status ?? "")
+    const orderStatus = String(order.status ?? "pending")
       .trim()
       .toLowerCase();
 
-    const orderStatus = rawOrderStatus || "pending";
-
-    /*
-     * Missing paymentStatus is also treated as pending.
-     */
-    const rawPaymentStatus = String(order?.paymentStatus ?? "")
+    const paymentStatus = String(order.paymentStatus ?? "pending")
       .trim()
       .toLowerCase();
 
-    const paymentStatus = rawPaymentStatus || "pending";
-
-    /*
-     * Customer can cancel while the order has not
-     * moved beyond pending/confirmed.
-     */
     const cancellableStatuses = ["pending", "confirmed"];
 
-    /*
-     * Paid/refunded/cancelled orders must never
-     * show the customer cancellation action.
-     */
     const blockedPaymentStatuses = [
       "paid",
       "refunded",
